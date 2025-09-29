@@ -1,0 +1,12 @@
+{
+  "name": "mini-engine-deps",
+  "version-string": "1.0.0",
+  "dependencies": [
+    "directxtex",
+    "directxtk12",
+    "imgui",
+    "tinygltf",
+    "d3dx12",
+    "winpixevent"
+  ]
+}

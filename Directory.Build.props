@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <VcpkgRoot>$(MSBuildThisFileDirectory).vcpkg\</VcpkgRoot>
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgManifestRoot>$(MSBuildThisFileDirectory)</VcpkgManifestRoot>
+    <VcpkgTriplet>x64-windows</VcpkgTriplet>
+  </PropertyGroup>
+</Project>
