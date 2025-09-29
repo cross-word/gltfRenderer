@@ -24,8 +24,8 @@ gltf file Renderer through DX12 API
 >   > Expected result of directory tree is like this.     
 >   >   > -main_sponza    
 >   >   > --(main sponza scene files...)    
->   >   > -MiniEngine     
->   >   > --(MiniEngine repo code files...)       
+>   >   > -gltfRenderer     
+>   >   > --(gltfRenderer repo code files...)       
 
 > 2. build
 >   > run cmd. 
