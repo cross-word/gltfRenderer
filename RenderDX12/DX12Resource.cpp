@@ -120,6 +120,86 @@ void DX12ResourceBuffer::CopyAndUploadResource(ID3D12Resource* uploadBuffer, con
 	uploadBuffer->Unmap(0, nullptr);
 }
 
+void DX12ResourceBuffer::CreateUploadBuffer(ID3D12Device* device, UINT byteSize)
+{
+	CD3DX12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+	CD3DX12_RESOURCE_DESC descBuffer = CD3DX12_RESOURCE_DESC::Buffer(byteSize);
+	descBuffer.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	descBuffer.Width = byteSize;
+	descBuffer.Height = 1;
+	descBuffer.DepthOrArraySize = 1;
+	descBuffer.MipLevels = 1;
+	descBuffer.SampleDesc.Count = 1;
+	descBuffer.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+	ThrowIfFailed(device->CreateCommittedResource(
+		&heapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&descBuffer,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&m_uploadBuffer)));
+}
+
+void DX12ResourceBuffer::CreateDefaultBuffer(
+	ID3D12Device* device,
+	UINT byteSize,
+	D3D12_RESOURCE_FLAGS flags,
+	D3D12_RESOURCE_STATES initState)
+{
+	CD3DX12_HEAP_PROPERTIES hp(D3D12_HEAP_TYPE_DEFAULT);
+	auto desc = CD3DX12_RESOURCE_DESC::Buffer(byteSize, flags);
+	ThrowIfFailed(device->CreateCommittedResource(
+		&hp,
+		D3D12_HEAP_FLAG_NONE,
+		&desc,
+		initState,
+		nullptr,
+		IID_PPV_ARGS(&m_resource)));
+	m_currentState = initState;
+}
+
+void DX12ResourceBuffer::CreateResourceBuffer(
+	ID3D12Device* device,
+	DX12CommandList* dx12CommandList,
+	const void* srcData,
+	UINT byteSize,
+	D3D12_RESOURCE_FLAGS flags)
+{
+	CD3DX12_HEAP_PROPERTIES hp(D3D12_HEAP_TYPE_DEFAULT);
+	auto desc = CD3DX12_RESOURCE_DESC::Buffer(byteSize, flags);
+	ThrowIfFailed(device->CreateCommittedResource(
+		&hp,
+		D3D12_HEAP_FLAG_NONE,
+		&desc,
+		D3D12_RESOURCE_STATE_COMMON,
+		nullptr,
+		IID_PPV_ARGS(&m_resource)));
+	m_currentState = D3D12_RESOURCE_STATE_COMMON;
+
+	CD3DX12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+	CD3DX12_RESOURCE_DESC descBuffer = CD3DX12_RESOURCE_DESC::Buffer(byteSize);
+	descBuffer.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	descBuffer.Width = byteSize;
+	descBuffer.Height = 1;
+	descBuffer.DepthOrArraySize = 1;
+	descBuffer.MipLevels = 1;
+	descBuffer.SampleDesc.Count = 1;
+	descBuffer.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+	ThrowIfFailed(device->CreateCommittedResource(
+		&heapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&descBuffer,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&m_uploadBuffer)));
+
+	CopyAndUploadResource(m_uploadBuffer.Get(), srcData, byteSize);
+	dx12CommandList->GetCommandList()->CopyBufferRegion(m_resource.Get(), 0, m_uploadBuffer.Get(), 0, byteSize);
+	TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+}
+
 void DX12ResourceTexture::CopyAndUploadResource(ID3D12Resource* uploadBuffer, const void* sourceAddress, size_t dataSize, CD3DX12_RANGE* readRange)
 {
 	void* mapped = nullptr;
@@ -260,7 +340,7 @@ void DX12ResourceTexture::CreateTexture(
 		IID_PPV_ARGS(m_uploadBuffer.GetAddressOf())));
 
 	UpdateSubresources(dx12CommandList->GetCommandList(), m_resource.Get(), m_uploadBuffer.Get(), 0, 0, resourceDataSize, subResourceData.data());
-	TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 	dx12CommandList->RecordResourceStateTransition();
 }
 
@@ -347,4 +427,28 @@ void DX12ResourceTexture::CreateShadowResource(
 		IID_PPV_ARGS(&m_resource)));
 
 	m_currentState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+}
+
+void DX12ResourceTexture::CreateUAVTexture(
+	ID3D12Device* device,
+	uint32_t width,
+	uint32_t height,
+	DXGI_FORMAT format)
+{
+	D3D12_RESOURCE_DESC d{};
+	d.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	d.Width = width; d.Height = height; d.DepthOrArraySize = 1;
+	d.MipLevels = 1; d.Format = format;
+	d.SampleDesc = { 1,0 }; d.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	d.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+	CD3DX12_HEAP_PROPERTIES hp(D3D12_HEAP_TYPE_DEFAULT);
+	ThrowIfFailed(device->CreateCommittedResource(
+		&hp,
+		D3D12_HEAP_FLAG_NONE,
+		&d,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+		nullptr,
+		IID_PPV_ARGS(m_resource.ReleaseAndGetAddressOf())));
+	m_currentState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 }

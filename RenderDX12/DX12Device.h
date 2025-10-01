@@ -17,6 +17,7 @@
 #include "DX12TextureManager.h"
 #include "DX12ShadowManager.h"
 #include "D3DTimer.h"
+#include "DX12RayTracingManager.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -37,7 +38,7 @@ public:
 	~DX12Device();
 	void Initialize(HWND hWnd, const std::wstring& sceneFilePath);
 
-	inline ID3D12Device* GetDevice() const noexcept { return m_device.Get(); }
+	inline ID3D12Device5* GetDevice() const noexcept { return m_device.Get(); }
 	inline DX12DescriptorHeap* GetDX12RTVHeap() const noexcept { return m_DX12RTVHeap.get(); }
 	inline DX12DescriptorHeap* GetDX12CBVSRVHeap() const noexcept { return m_DX12SRVHeap.get(); }
 	inline DX12DescriptorHeap* GetDX12ImGuiHeap() const noexcept { return m_DX12ImGuiHeap.get(); }
@@ -72,6 +73,11 @@ public:
 	inline DX12CommandList* GetPostDrawDX12CommandList() const noexcept { return m_postDrawDX12CommandList.get(); }
 	inline DX12CommandList* GetWorkerShadowDX12CommandList(uint32_t workerIndex) const { assert(workerIndex < m_workerShadowDX12CommandList.size()); return m_workerShadowDX12CommandList[workerIndex].get(); }
 	inline size_t GetWorkerShadowDX12CommandListSize() const { return m_workerShadowDX12CommandList.size(); }
+
+	//for ray-tracing
+	bool IsDXRAvailable() const noexcept { return m_rtxSupported; }
+	inline DX12RayTracingManager* GetRayTracingManager() const { return m_DX12RayTracingManager.get(); }
+	void ResizeRTOut();
 private:
 	void InitDX12CommandList(ID3D12CommandAllocator* commandAllocator);
 	void InitDX12SwapChain(HWND hWnd);
@@ -86,9 +92,12 @@ private:
 	void InitDX12FrameResource();
 	void CreateDX12FrameResourceSRV();
 	void InitDX12ShadowManager();
+
+	//for ray-tracing
+	void InitDXRayTracing();
 private:
 	ComPtr<IDXGIFactory4> m_factory;
-	ComPtr<ID3D12Device> m_device;
+	ComPtr<ID3D12Device5> m_device;
 	std::unique_ptr<DX12CommandList> m_DX12CommandList; //for single-thread or main thread in multi-thread setting
 	std::unique_ptr<DX12RootSignature> m_DX12RootSignature;
 	std::unique_ptr<DX12PSO> m_DX12PSO;
@@ -128,4 +137,16 @@ private:
 	std::unique_ptr<DX12CommandList> m_postDrawDX12CommandList; //command list to finish frame
 	std::vector<std::unique_ptr<DX12CommandList>> m_workerShadowDX12CommandList;
 
+	//for ray-tracing
+	bool m_rtxSupported = false;
+
+	// TLAS/BLAS
+	std::unique_ptr<DX12RayTracingManager> m_DX12RayTracingManager;
+
+	std::vector<uint32_t> m_indices;
+	std::vector<DirectX::XMFLOAT3> m_positions;
+	std::vector<DirectX::XMFLOAT3> m_normals;
+	std::vector<DirectX::XMFLOAT2> m_texcoords;
+	std::vector<DirectX::XMFLOAT4> m_tangents;
+	std::vector<GeometryMetadataCPU> m_geoTable;
 };

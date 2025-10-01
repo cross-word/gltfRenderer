@@ -138,6 +138,11 @@ void RenderDX12::OnResize()
 	m_DX12Device.GetDX12CommandList()->ResetList(m_DX12Device.GetFrameResource(m_DX12Device.GetCurrentBackBufferIndex())->GetCommandAllocator());
 
 	m_DX12FrameBuffer.Resize(&m_DX12Device);
+
+	if (m_DX12Device.IsDXRAvailable())
+	{
+		m_DX12Device.ResizeRTOut();
+	}
 }
 
 void RenderDX12::AllocateWorkerDrawingCommand(uint32_t i)
@@ -261,7 +266,65 @@ void RenderDX12::RecordAndSubmit_Single()
 	m_timer.BeginGPU(m_DX12Device.GetDX12CommandList()->GetCommandList(), currBackBufferIndex); // << imgui GPU TIMER START
 
 	m_DX12Device.UpdateFrameResource(m_timer);
+	/////////////////////////////////////// 일단 테스트를 위해 기워넣기
+	if (m_useRayTracing && m_DX12Device.IsDXRAvailable())
+	{
+		m_DX12FrameBuffer.EndShadowRender(m_DX12Device.GetDX12CommandList(), m_DX12Device.GetDX12ShadowManager());
 
+		const UINT w = m_DX12Device.GetDX12SwapChain()->GetClientWidth();
+		const UINT h = m_DX12Device.GetDX12SwapChain()->GetClientHeight();
+
+		// ray dispatch
+		auto* cl4 = reinterpret_cast<ID3D12GraphicsCommandList4*>(
+			m_DX12Device.GetDX12CommandList()->GetCommandList());
+		m_DX12FrameBuffer.DispatchRays(
+			cl4,
+			m_DX12Device.GetDX12CBVSRVHeap(),
+			m_DX12Device.GetRayTracingManager(),
+			m_DX12Device.GetDX12RootSignature()->GetRootSignature(),
+			m_DX12Device.GetDX12SwapChain()->GetClientWidth(),
+			m_DX12Device.GetDX12SwapChain()->GetClientHeight()
+		);
+
+		// UAV → BackBuffer 복사
+		const UINT curr = m_DX12Device.GetDX12SwapChain()->GetSwapChain()->GetCurrentBackBufferIndex();
+		m_DX12FrameBuffer.CopyTextureToBackBuffer(m_DX12Device.GetDX12CommandList(), m_DX12Device.GetRayTracingManager(), curr);
+
+		// ImGui
+		ImGui_ImplDX12_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
+
+		ImGui::Begin("Frame Times");
+		float gpuMS = m_timer.GetElapsedGPUMS(curr);
+		float cpuMS = m_timer.GetElapsedCPUMS(curr);
+		ImGui::Text("CPU: %.3f ms \nGPU: %.3f ms", cpuMS, gpuMS);
+		ImGui::End();
+		ImGui::Render();
+
+		auto base = m_DX12Device.GetDX12RTVHeap()->GetDescHeap()->GetCPUDescriptorHandleForHeapStart();
+		auto inc = m_DX12Device.GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE backbufRTV(base, curr, inc);
+
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->OMSetRenderTargets(1, &backbufRTV, FALSE, nullptr);
+		ID3D12DescriptorHeap* heaps[] = { m_DX12Device.GetDX12ImGuiHeap()->GetDescHeap() };
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetDescriptorHeaps(1, heaps);
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_DX12Device.GetDX12CommandList()->GetCommandList());
+
+		// Present
+		m_DX12FrameBuffer.SetBackBufferPresent(m_DX12Device.GetDX12CommandList(), curr);
+		m_timer.EndGPU(m_DX12Device.GetDX12CommandList()->GetCommandList(), curr);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->Close();
+
+		ID3D12CommandList* lists[] = { m_DX12Device.GetDX12CommandList()->GetCommandList() };
+		m_DX12Device.GetDX12CommandList()->GetCommandQueue()->ExecuteCommandLists(1, lists);
+		const uint64_t fv = m_DX12Device.GetDX12CommandList()->Signal();
+		m_DX12Device.GetFrameResource(curr)->SetFenceValue(fv);
+		m_timer.EndCPU(curr);
+		m_DX12FrameBuffer.Present(&m_DX12Device);
+		return;
+	}
+	///////////////////////////////////////
 	m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootSignature(m_DX12Device.GetDX12RootSignature()->GetRootSignature());
 	ID3D12DescriptorHeap* descriptorHeaps[] = { m_DX12Device.GetDX12CBVSRVHeap()->GetDescHeap() };
 

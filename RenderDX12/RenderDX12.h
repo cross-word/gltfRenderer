@@ -100,6 +100,7 @@ private:
     void RecordAndSubmit_Single();
     void RecordAndSubmit_Multi(); // for multi-thread
 
+    bool m_useRayTracing = true;  // toggle ray-tracing, rasterization
 };
 static UINT sFrameId = 0;
 

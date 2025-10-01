@@ -4,6 +4,7 @@
 #include "../FileLoader/SimpleLoader.h"
 
 #include <future>
+
 DX12Device::DX12Device()
 {
 	m_fenceEvent = CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS);
@@ -119,7 +120,8 @@ void DX12Device::InitDX12SRVHeap()
 		2 * EngineConfig::MaxTextureCount
 		+ 1
 		+ 1
-		+ 1, // 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors + 1 shadow map
+		+ 1
+		+ 8, // 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors + 1 shadow map + 8 raytracing var
 		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
 		D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
 }
@@ -422,6 +424,28 @@ void DX12Device::PrepareInitialResource()
 			m_sceneData.primitives[p].mesh,
 			D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		m_sceneGeometry[p] = std::move(tmpGeometry);
+
+		const auto& vtx = m_sceneData.primitives[p].mesh.vertices;
+		const auto& idx = m_sceneData.primitives[p].mesh.indices;
+		GeometryMetadataCPU meta{};
+		meta.IndexOffset = static_cast<uint32_t>(idx.size());
+		meta.VertexOffset = static_cast<uint32_t>(vtx.size());
+		meta.MaterialIndex = static_cast<uint32_t>(max(m_sceneData.primitives[p].material, 0));
+		m_geoTable.push_back(meta);
+		m_indices.insert(m_indices.end(), idx.begin(), idx.end());
+		m_positions.reserve(m_positions.size() + vtx.size());
+		m_normals.reserve(m_normals.size() + vtx.size());
+		m_texcoords.reserve(m_texcoords.size() + vtx.size());
+		m_tangents.reserve(m_tangents.size() + vtx.size());
+		for (const auto& vv : vtx)
+		{
+			m_positions.push_back(vv.position);
+			m_normals.push_back(vv.normal);
+			m_texcoords.push_back(vv.texC);
+			XMFLOAT4 tangent = XMFLOAT4( vv.tangent.x, vv.tangent.y, vv.tangent.z, (std::isfinite(vv.tangent.w) ? vv.tangent.w : 1.0f));
+			m_tangents.push_back(tangent);
+		}
+
 	}
 
 	// build RenderItems
@@ -448,11 +472,15 @@ void DX12Device::PrepareInitialResource()
 	m_DX12ObjectConstantManager->InitializeSRV(m_device.Get(), &objCPUHandle, EngineConfig::NumDefaultObjectSRVSlot, sizeof(ObjectConstants));
 
 	//wait for upload and reset upload buffers
+	InitDXRayTracing();
 	m_DX12CommandList->SubmitAndWait();
 	for (int i = 0; i < m_DX12RenderGeometry.size(); i++)
 	{
 		m_DX12RenderGeometry[i]->GetDX12VertexBuffer()->ResetUploadBuffer();
 		m_DX12RenderGeometry[i]->GetDX12IndexBuffer()->ResetUploadBuffer();
+
+		m_DX12RenderGeometry[i]->GetDX12IndexBuffer()->TransitionState(m_DX12CommandList.get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		m_DX12RenderGeometry[i]->GetDX12VertexBuffer()->TransitionState(m_DX12CommandList.get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 	}
 	m_DX12MaterialConstantManager->GetMaterialResource()->ResetUploadBuffer();
 }
@@ -488,7 +516,7 @@ void DX12Device::InitDX12ShadowManager()
 		+ 1
 		+ 1).cpuDescHandle);// 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors, after 1 shadow map
 
-	m_DX12ShadowManager->Initialzie(m_device.Get(), m_DX12CommandList.get(), /**/ tmpDSVOffsetHandle, /*nullptr??*/ tmpRTVOffsetHandle);
+	m_DX12ShadowManager->Initialzie(m_device.Get(), m_DX12CommandList.get(), tmpDSVOffsetHandle, tmpRTVOffsetHandle);
 }
 
 void DX12Device::UpdateFrameResource(D3DTimer d3dTimer)
@@ -536,4 +564,50 @@ UINT DX12Device::GetMaterialIndexAsMaterialName(const std::string materialName)
 	::OutputDebugStringA(msg.c_str());
 
 	return 0;
+}
+
+//////ray-tracing
+void DX12Device::InitDXRayTracing()
+{
+	//check support
+	D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
+	ThrowIfFailed(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5,
+		&options5, sizeof(options5)));
+	if (options5.RaytracingTier < D3D12_RAYTRACING_TIER_1_0)
+	{
+		throw std::runtime_error("Raytracing not supported on device");
+		m_rtxSupported = false;
+		return;
+	}
+	m_rtxSupported = true;
+	m_DX12RayTracingManager = std::make_unique<DX12RayTracingManager>();
+
+	// ray out UAV
+	m_DX12RayTracingManager->InitRayOut(m_device.Get(), m_DX12CommandList.get(), m_DX12SRVHeap.get(), m_DX12SwapChain->GetClientWidth(), m_DX12SwapChain->GetClientHeight());
+
+	// BLAS/TLAS
+	m_DX12RayTracingManager->InitBLAS(m_device.Get(), m_DX12CommandList.get(), m_sceneGeometry);
+	m_DX12RayTracingManager->InitTLAS(m_device.Get(), m_DX12CommandList->GetCommandList(), m_sceneGeometry, m_renderItems);
+
+	// SRV writing
+	m_DX12RayTracingManager->BuildRayGeometryBuffers(
+		m_device.Get(),
+		m_DX12CommandList.get(),
+		m_DX12SRVHeap.get(),
+		m_indices,
+		m_positions,
+		m_normals,
+		m_texcoords,
+		m_tangents,
+		m_geoTable);
+
+	// »óÅÂ°´Ã¼
+	m_DX12RayTracingManager->InitRayTracingPipeline(m_device.Get(), m_DX12RootSignature->GetRootSignature());
+	// ¼ÎÀÌ´õ Å×ÀÌºí
+	m_DX12RayTracingManager->CreateShaderTable(m_device.Get());
+}
+
+void DX12Device::ResizeRTOut()
+{
+	m_DX12RayTracingManager->InitRayOut(m_device.Get(), m_DX12CommandList.get(), m_DX12SRVHeap.get(), m_DX12SwapChain->GetClientWidth(), m_DX12SwapChain->GetClientHeight());
 }

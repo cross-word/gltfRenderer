@@ -7,6 +7,8 @@
     "imgui",
     "tinygltf",
     "d3dx12",
-    "winpixevent"
+    "winpixevent",
+    "directx-headers",
+    "directx-dxc"
   ]
 }

@@ -41,7 +41,7 @@ struct EngineConfig
     static inline const wchar_t* ShadowShaderFilePath = kShadowShaderPathS.c_str(); // tmp
     static inline const wchar_t* SceneFilePath = kScenePathS.c_str(); // tmp
     static constexpr UINT NumThreadWorker = 4;
-    static constexpr bool UseMultiThread = true;
+    static constexpr bool UseMultiThread = false;
     static constexpr UINT MaxTextureCount = 80;
 
 };

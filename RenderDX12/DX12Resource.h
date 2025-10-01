@@ -47,7 +47,19 @@ public:
     void CreateVertexBuffer(ID3D12Device* device, std::span<const Vertex> vertices, DX12CommandList* dx12CommandList);
 	void CreateIndexBuffer(ID3D12Device* device, std::span<const uint32_t> indices, DX12CommandList* dx12CommandList);
 	void CopyAndUploadResource(ID3D12Resource* uploadBuffer, const void* sourceAddress, size_t dataSize, CD3DX12_RANGE* readRange = nullptr);
-
+	void CreateUploadBuffer(ID3D12Device* device, UINT byteSize);
+	void CreateDefaultBuffer(
+		ID3D12Device* device,
+		UINT byteSize,
+		D3D12_RESOURCE_FLAGS flags,
+		D3D12_RESOURCE_STATES initState);
+	void CreateResourceBuffer(
+		ID3D12Device* device,
+		DX12CommandList* dx12CommandList,
+		const void* srcData,
+		UINT byteSize,
+		D3D12_RESOURCE_FLAGS flags);
+	ID3D12Resource* GetUploadBuffer() const noexcept { return m_uploadBuffer.Get(); }
 private:
 	ComPtr<ID3D12Resource> m_uploadBuffer;
 	D3D12_RESOURCE_STATES  m_uploadBufferCurrentState = D3D12_RESOURCE_STATE_COMMON; //default state common
@@ -92,6 +104,12 @@ public:
 		uint32_t shadowHeight,
 		DXGI_FORMAT shadowResourceFormat,
 		DXGI_FORMAT shadowDSVFormat);
+
+	void CreateUAVTexture(
+		ID3D12Device* device,
+		uint32_t width,
+		uint32_t height,
+		DXGI_FORMAT format);
 
 private:
 	ComPtr<ID3D12Resource> m_uploadBuffer;

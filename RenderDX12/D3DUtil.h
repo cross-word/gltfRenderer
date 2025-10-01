@@ -226,7 +226,7 @@ static void BuildDirLightViewProj(
         maxPt = XMVectorMax(maxPt, p);
     }
 
-    // 5) Off-center Ortho (LH)
+    // Off-center Ortho (LH)
     XMFLOAT3 minPtF, maxPtF;
     XMStoreFloat3(&minPtF, minPt);
     XMStoreFloat3(&maxPtF, maxPt);
@@ -275,3 +275,5 @@ inline UINT SizeToU32(size_t n)
     assert(n <= (std::numeric_limits<UINT>::max)());
     return static_cast<UINT>(n);
 }
+
+inline UINT AlignUp(UINT v, UINT a) { return (v + (a - 1)) & ~(a - 1); }
