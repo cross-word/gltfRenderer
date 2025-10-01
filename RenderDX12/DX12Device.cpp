@@ -219,7 +219,7 @@ void DX12Device::CreateDX12PSO()
 	m_DX12PSO->CreateMainPassPSO(
 		GetDevice(),
 		m_inputLayout,
-		m_DX12RootSignature->GetRootSignature(),
+		m_DX12RootSignature->GetRasterizeRootSignature(),
 		m_DX12SwapChain->GetDepthStencilFormat(),
 		m_DX12SwapChain->GetRenderTargetFormat(),
 		m_vertexShader.Get(),
@@ -231,7 +231,7 @@ void DX12Device::CreateDX12PSO()
 	m_DX12PSO->CreateShadowPassPSO(
 		GetDevice(),
 		m_inputLayout,
-		m_DX12RootSignature->GetRootSignature(),
+		m_DX12RootSignature->GetRasterizeRootSignature(),
 		m_DX12ShadowManager->GetShadowDepthStencilFormat(),
 		DXGI_FORMAT_UNKNOWN,
 		m_shadowVertexShader.Get(),
@@ -601,7 +601,7 @@ void DX12Device::InitDXRayTracing()
 		m_geoTable);
 
 	// »óÅÂ°´Ã¼
-	m_DX12RayTracingManager->InitRayTracingPipeline(m_device.Get(), m_DX12RootSignature->GetRootSignature());
+	m_DX12RayTracingManager->InitRayTracingPipeline(m_device.Get(), m_DX12RootSignature->GetRayTracingRootSignature());
 	// ¼ÎÀÌ´õ Å×ÀÌºí
 	m_DX12RayTracingManager->CreateShaderTable(m_device.Get());
 }

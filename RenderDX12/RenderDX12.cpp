@@ -180,7 +180,7 @@ void RenderDX12::AllocateWorkerDrawingCommand(uint32_t i)
 		}
 
 		auto* commandList = workerCommandList->GetCommandList();
-		commandList->SetGraphicsRootSignature(m_DX12Device.GetDX12RootSignature()->GetRootSignature());
+		commandList->SetGraphicsRootSignature(m_DX12Device.GetDX12RootSignature()->GetRasterizeRootSignature());
 		ID3D12DescriptorHeap* descriptorHeaps[] = { m_DX12Device.GetDX12CBVSRVHeap()->GetDescHeap() };
 		commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 		commandList->SetGraphicsRootDescriptorTable(0, job.cbvSlice.gpuDescHandle);
@@ -281,7 +281,7 @@ void RenderDX12::RecordAndSubmit_Single()
 			cl4,
 			m_DX12Device.GetDX12CBVSRVHeap(),
 			m_DX12Device.GetRayTracingManager(),
-			m_DX12Device.GetDX12RootSignature()->GetRootSignature(),
+			m_DX12Device.GetDX12RootSignature()->GetRayTracingRootSignature(),
 			m_DX12Device.GetDX12SwapChain()->GetClientWidth(),
 			m_DX12Device.GetDX12SwapChain()->GetClientHeight()
 		);
@@ -325,7 +325,7 @@ void RenderDX12::RecordAndSubmit_Single()
 		return;
 	}
 	///////////////////////////////////////
-	m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootSignature(m_DX12Device.GetDX12RootSignature()->GetRootSignature());
+	m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootSignature(m_DX12Device.GetDX12RootSignature()->GetRasterizeRootSignature());
 	ID3D12DescriptorHeap* descriptorHeaps[] = { m_DX12Device.GetDX12CBVSRVHeap()->GetDescHeap() };
 
 	auto* cbvSrvHeap = m_DX12Device.GetDX12CBVSRVHeap();
@@ -674,4 +674,21 @@ void RenderDX12::ShutDown()
 		if (t.joinable()) t.join();
 	}
 	m_DX12Device.GetDX12CommandList()->FlushCommandQueue();
+}
+
+void RenderDX12::ToggleRayTracing()
+{
+	if (!m_DX12Device.IsDXRAvailable())
+	{
+		m_useRayTracing = false;
+#if defined(_DEBUG)
+		OutputDebugStringW(L"DXR is not available. Falling back to rasterization.\n");
+#endif
+		return;
+	}
+
+	m_useRayTracing = !m_useRayTracing;
+#if defined(_DEBUG)
+	OutputDebugStringW(m_useRayTracing ? L"Ray tracing enabled.\n" : L"Ray tracing disabled.\n");
+#endif
 }

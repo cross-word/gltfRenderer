@@ -181,6 +181,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             case 'D': MainRenderer->GetD3DCamera()->Move(XMFLOAT3{ step, 0.f, 0.f }); break;
             case 'Q': MainRenderer->GetD3DCamera()->Move(XMFLOAT3{ 0.f, step, 0.f }); break;
             case 'E': MainRenderer->GetD3DCamera()->Move(XMFLOAT3{ 0.f, -step, 0.f }); break;
+            case VK_SPACE: MainRenderer->ToggleRayTracing(); break;
             }
             return 0;
         }
