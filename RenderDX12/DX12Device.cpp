@@ -428,12 +428,12 @@ void DX12Device::PrepareInitialResource()
 		const auto& vtx = m_sceneData.primitives[p].mesh.vertices;
 		const auto& idx = m_sceneData.primitives[p].mesh.indices;
 		GeometryMetadataCPU meta{};
-		meta.IndexOffset = static_cast<uint32_t>(idx.size());
-		meta.VertexOffset = static_cast<uint32_t>(vtx.size());
+		meta.IndexOffset = static_cast<uint32_t>(m_indices.size()); //size is same with the offset
+		meta.VertexOffset = static_cast<uint32_t>(m_positions.size()); //size is same with the offset
 		meta.MaterialIndex = static_cast<uint32_t>(max(m_sceneData.primitives[p].material, 0));
 		m_geoTable.push_back(meta);
-		m_indices.insert(m_indices.end(), idx.begin(), idx.end());
-		m_positions.reserve(m_positions.size() + vtx.size());
+		m_indices.insert(m_indices.end(), idx.begin(), idx.end()); //make size same te the offset.
+		m_positions.reserve(m_positions.size() + vtx.size()); //make size same te the offset.
 		m_normals.reserve(m_normals.size() + vtx.size());
 		m_texcoords.reserve(m_texcoords.size() + vtx.size());
 		m_tangents.reserve(m_tangents.size() + vtx.size());
@@ -451,7 +451,6 @@ void DX12Device::PrepareInitialResource()
 	// build RenderItems
 	m_renderItems.clear();
 	m_renderItems.reserve(m_sceneData.instances.size());
-
 	for (auto& instance : m_sceneData.instances)
 	{
 		Render::RenderItem renderItem{};
