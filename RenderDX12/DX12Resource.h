@@ -39,6 +39,9 @@ protected:
 	D3D12_RESOURCE_STATES  m_currentState = D3D12_RESOURCE_STATE_COMMON; //default state common
 };
 
+/*
+// has two ID3D12Resource: resource/upload buffer.
+*/
 class DX12ResourceBuffer : public DX12Resource
 {
 public:
@@ -48,12 +51,12 @@ public:
 	void CreateIndexBuffer(ID3D12Device* device, std::span<const uint32_t> indices, DX12CommandList* dx12CommandList);
 	void CopyAndUploadResource(ID3D12Resource* uploadBuffer, const void* sourceAddress, size_t dataSize, CD3DX12_RANGE* readRange = nullptr);
 	void CreateUploadBuffer(ID3D12Device* device, UINT byteSize);
-	void CreateDefaultBuffer(
+	void CreateResource(
 		ID3D12Device* device,
 		UINT byteSize,
 		D3D12_RESOURCE_FLAGS flags,
 		D3D12_RESOURCE_STATES initState);
-	void CreateResourceBuffer(
+	void CreateResourceAndUploadBuffer(
 		ID3D12Device* device,
 		DX12CommandList* dx12CommandList,
 		const void* srcData,

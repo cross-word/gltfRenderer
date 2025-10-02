@@ -51,7 +51,7 @@ void DX12RootSignature::CreateRasterizeRootSignature(ID3D12Device* device)
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		1,
-		1);//t1 space 1 worlds
+		1);//t1 space 1 objectConstant
 
 	// Create a single descriptor table of shadow map.
 	CD3DX12_DESCRIPTOR_RANGE1 shadowMapTable;
@@ -120,7 +120,7 @@ void DX12RootSignature::CreateRayTracingRootSignature(ID3D12Device* device)
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
 		1,
-		1);//t1 space 1 worlds
+		1);//t1 space 1 objectConstant
 	CD3DX12_DESCRIPTOR_RANGE1 srvTableGeo;
 	srvTableGeo.Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,

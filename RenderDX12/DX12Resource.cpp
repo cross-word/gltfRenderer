@@ -141,7 +141,7 @@ void DX12ResourceBuffer::CreateUploadBuffer(ID3D12Device* device, UINT byteSize)
 		IID_PPV_ARGS(&m_uploadBuffer)));
 }
 
-void DX12ResourceBuffer::CreateDefaultBuffer(
+void DX12ResourceBuffer::CreateResource(
 	ID3D12Device* device,
 	UINT byteSize,
 	D3D12_RESOURCE_FLAGS flags,
@@ -159,7 +159,7 @@ void DX12ResourceBuffer::CreateDefaultBuffer(
 	m_currentState = initState;
 }
 
-void DX12ResourceBuffer::CreateResourceBuffer(
+void DX12ResourceBuffer::CreateResourceAndUploadBuffer(
 	ID3D12Device* device,
 	DX12CommandList* dx12CommandList,
 	const void* srcData,
@@ -422,11 +422,11 @@ void DX12ResourceTexture::CreateShadowResource(
 		&heapProp,
 		D3D12_HEAP_FLAG_NONE,
 		&texDesc,
-		D3D12_RESOURCE_STATE_DEPTH_WRITE,
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		&clearVal,
 		IID_PPV_ARGS(&m_resource)));
 
-	m_currentState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+	m_currentState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 }
 
 void DX12ResourceTexture::CreateUAVTexture(

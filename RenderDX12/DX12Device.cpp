@@ -318,10 +318,8 @@ void DX12Device::PrepareInitialResource()
 
 	for (size_t i = 0; i < decodedTextures.size(); ++i)
 	{
-		auto SRGBCpuHandle = m_DX12SRVHeap->Offset(
-			EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + (UINT)i).cpuDescHandle;
-		auto LinearCpuHandle = m_DX12SRVHeap->Offset(
-			EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + EngineConfig::MaxTextureCount + (UINT)i).cpuDescHandle;
+		auto SRGBCpuHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetTextureSRGB + (UINT)i).cpuDescHandle;
+		auto LinearCpuHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetTextureLinear + (UINT)i).cpuDescHandle;
 
 		auto tmpTexture = std::make_unique<DX12TextureManager>();
 		std::string texName = "tex_" + std::to_string(i);
@@ -340,8 +338,8 @@ void DX12Device::PrepareInitialResource()
 	const UINT dummyStartIndex = SizeToU32(m_sceneData.textures.size());
 	for (UINT i = dummyStartIndex; i < EngineConfig::MaxTextureCount; ++i)
 	{
-		auto cpuHandle = m_DX12SRVHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + i).cpuDescHandle;
-		auto cpuHandle2 = m_DX12SRVHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + EngineConfig::MaxTextureCount + i).cpuDescHandle;
+		auto cpuHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetTextureSRGB + i).cpuDescHandle;
+		auto cpuHandle2 = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetTextureLinear + i).cpuDescHandle;
 
 		auto tmpTexture = std::make_unique<DX12TextureManager>();
 		tmpTexture->CreateDummyTextureResource(
@@ -399,7 +397,7 @@ void DX12Device::PrepareInitialResource()
 		m_DX12CommandList->GetCommandList(),
 		materialSize * sizeof(MaterialConstants));
 
-	auto matCPUHandle = m_DX12SRVHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount).cpuDescHandle;
+	auto matCPUHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetMaterial).cpuDescHandle;
 	m_DX12MaterialConstantManager->InitializeSRV(
 		m_device.Get(),
 		&matCPUHandle,
@@ -467,20 +465,14 @@ void DX12Device::PrepareInitialResource()
 
 	m_DX12ObjectConstantManager = std::make_unique<DX12ObjectConstantManager>();
 	m_DX12ObjectConstantManager->InitialzieUploadBuffer(m_device.Get(), m_DX12CommandList->GetCommandList(), EngineConfig::NumDefaultObjectSRVSlot * sizeof(ObjectConstants));
-	auto objCPUHandle = m_DX12SRVHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 1).cpuDescHandle;
+	auto objCPUHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetObjectConstant).cpuDescHandle;
 	m_DX12ObjectConstantManager->InitializeSRV(m_device.Get(), &objCPUHandle, EngineConfig::NumDefaultObjectSRVSlot, sizeof(ObjectConstants));
 
-	//wait for upload and reset upload buffers
+	//ray tracing prepare
 	InitDXRayTracing();
-	m_DX12CommandList->SubmitAndWait();
-	for (int i = 0; i < m_DX12RenderGeometry.size(); i++)
-	{
-		m_DX12RenderGeometry[i]->GetDX12VertexBuffer()->ResetUploadBuffer();
-		m_DX12RenderGeometry[i]->GetDX12IndexBuffer()->ResetUploadBuffer();
 
-		m_DX12RenderGeometry[i]->GetDX12IndexBuffer()->TransitionState(m_DX12CommandList.get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		m_DX12RenderGeometry[i]->GetDX12VertexBuffer()->TransitionState(m_DX12CommandList.get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-	}
+	//wait for upload and reset upload buffers
+	m_DX12CommandList->SubmitAndWait();
 	m_DX12MaterialConstantManager->GetMaterialResource()->ResetUploadBuffer();
 }
 
@@ -509,11 +501,8 @@ void DX12Device::InitDX12ShadowManager()
 		2 * m_DX12SwapChain->GetSwapChainBufferCount(), // maind render + msaa render,
 		m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV)));
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE tmpRTVOffsetHandle = static_cast<CD3DX12_CPU_DESCRIPTOR_HANDLE>(m_DX12SRVHeap->Offset(
-		EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount +
-		2 * EngineConfig::MaxTextureCount
-		+ 1
-		+ 1).cpuDescHandle);// 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors, after 1 shadow map
+	CD3DX12_CPU_DESCRIPTOR_HANDLE tmpRTVOffsetHandle = static_cast<CD3DX12_CPU_DESCRIPTOR_HANDLE>(
+		m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetShadowMap).cpuDescHandle);// 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors, after 1 shadow map
 
 	m_DX12ShadowManager->Initialzie(m_device.Get(), m_DX12CommandList.get(), tmpDSVOffsetHandle, tmpRTVOffsetHandle);
 }
@@ -574,7 +563,7 @@ void DX12Device::InitDXRayTracing()
 		&options5, sizeof(options5)));
 	if (options5.RaytracingTier < D3D12_RAYTRACING_TIER_1_0)
 	{
-		throw std::runtime_error("Raytracing not supported on device");
+		::OutputDebugStringA("Raytracing not supported on device");
 		m_rtxSupported = false;
 		return;
 	}
@@ -600,9 +589,9 @@ void DX12Device::InitDXRayTracing()
 		m_tangents,
 		m_geoTable);
 
-	// »óÅÂ°´Ã¼
+	//state object
 	m_DX12RayTracingManager->InitRayTracingPipeline(m_device.Get(), m_DX12RootSignature->GetRayTracingRootSignature());
-	// ¼ÎÀÌ´õ Å×ÀÌºí
+	//shader table
 	m_DX12RayTracingManager->CreateShaderTable(m_device.Get());
 }
 

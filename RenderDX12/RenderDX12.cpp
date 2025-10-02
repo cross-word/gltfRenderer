@@ -181,7 +181,7 @@ void RenderDX12::AllocateWorkerDrawingCommand(uint32_t i)
 
 		auto* commandList = workerCommandList->GetCommandList();
 		commandList->SetGraphicsRootSignature(m_DX12Device.GetDX12RootSignature()->GetRasterizeRootSignature());
-		ID3D12DescriptorHeap* descriptorHeaps[] = { m_DX12Device.GetDX12CBVSRVHeap()->GetDescHeap() };
+		ID3D12DescriptorHeap* descriptorHeaps[] = { m_DX12Device.GetDX12SRVHeap()->GetDescHeap() };
 		commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 		commandList->SetGraphicsRootDescriptorTable(0, job.cbvSlice.gpuDescHandle);
 		commandList->SetGraphicsRootDescriptorTable(1, job.texSlice.gpuDescHandle);
@@ -266,30 +266,29 @@ void RenderDX12::RecordAndSubmit_Single()
 	m_timer.BeginGPU(m_DX12Device.GetDX12CommandList()->GetCommandList(), currBackBufferIndex); // << imgui GPU TIMER START
 
 	m_DX12Device.UpdateFrameResource(m_timer);
-	/////////////////////////////////////// 일단 테스트를 위해 기워넣기
+
+	// ray-tracing block
 	if (m_useRayTracing && m_DX12Device.IsDXRAvailable())
 	{
-		m_DX12FrameBuffer.EndShadowRender(m_DX12Device.GetDX12CommandList(), m_DX12Device.GetDX12ShadowManager());
-
 		// ray dispatch
-		ID3D12DescriptorHeap* heaps[] = { m_DX12Device.GetDX12CBVSRVHeap()->GetDescHeap() };
+		ID3D12DescriptorHeap* heaps[] = { m_DX12Device.GetDX12SRVHeap()->GetDescHeap() };
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetDescriptorHeaps(_countof(heaps), heaps);
 
-		// DXR 파이프라인 바인딩
+		// ray pipeline binding
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetPipelineState1(m_DX12Device.GetDX12RayTracingManager()->GetStateObject());
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootSignature(m_DX12Device.GetDX12RootSignature()->GetRayTracingRootSignature());
 
-		// 글로벌 RS에 테이블 바인딩
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(0, m_DX12Device.GetDX12CBVSRVHeap()->Offset(0).gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(1, m_DX12Device.GetDX12CBVSRVHeap()->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount).gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(2, m_DX12Device.GetDX12CBVSRVHeap()->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount).gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(3, m_DX12Device.GetDX12CBVSRVHeap()->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 2).gpuDescHandle);
-		UINT rtRootConstants[3] = { 10,10,10 };//instant
+		// descriptor binding
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(0, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetConstant).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(1, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetTextureSRGB).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(2, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetMaterial).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(3, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetShadowMap).gpuDescHandle);
+		UINT rtRootConstants[3] = { 0,0,0 };//dummy
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRoot32BitConstants(4, 3, rtRootConstants, 0);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(5, m_DX12Device.GetDX12CBVSRVHeap()->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 3).gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(6, m_DX12Device.GetDX12CBVSRVHeap()->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 4).gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(7, m_DX12Device.GetDX12CBVSRVHeap()->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 5).gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(8, m_DX12Device.GetDX12CBVSRVHeap()->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 6).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(5, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayTLAS).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(6, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayGeometry).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(7, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayOutput).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(8, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayIndex).gpuDescHandle);
 
 		D3D12_DISPATCH_RAYS_DESC desc{};
 		desc.RayGenerationShaderRecord.StartAddress = m_DX12Device.GetDX12RayTracingManager()->GetRayGenShaderTable()->GetGPUVirtualAddress();
@@ -309,17 +308,17 @@ void RenderDX12::RecordAndSubmit_Single()
 
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->DispatchRays(&desc);
 
-		// UAV → BackBuffer 복사
+		// UAV -> BackBuffer
 		const UINT curr = m_DX12Device.GetDX12SwapChain()->GetSwapChain()->GetCurrentBackBufferIndex();
-		m_DX12FrameBuffer.CopyTextureToBackBuffer(m_DX12Device.GetDX12CommandList(), m_DX12Device.GetDX12RayTracingManager(), curr);
+		m_DX12FrameBuffer.CopyRayTracingOutToBackBuffer(m_DX12Device.GetDX12CommandList(), m_DX12Device.GetDX12RayTracingManager(), curr);
 	}
-	///////////////////////////////////////
+	// rasterize block
 	else
 	{
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootSignature(m_DX12Device.GetDX12RootSignature()->GetRasterizeRootSignature());
-		ID3D12DescriptorHeap* descriptorHeaps[] = { m_DX12Device.GetDX12CBVSRVHeap()->GetDescHeap() };
+		ID3D12DescriptorHeap* descriptorHeaps[] = { m_DX12Device.GetDX12SRVHeap()->GetDescHeap() };
 
-		auto* cbvSrvHeap = m_DX12Device.GetDX12CBVSRVHeap();
+		auto* cbvSrvHeap = m_DX12Device.GetDX12SRVHeap();
 		constexpr uint32_t numDescPerFrame = EngineConfig::ConstantBufferCount;
 		constexpr uint32_t numDescPerThread = 0;
 		constexpr uint32_t maxWorkers = 0;
@@ -329,10 +328,11 @@ void RenderDX12::RecordAndSubmit_Single()
 
 		uint32_t cbvSliceIndex = cbvSrvHeap->CalcHeapSliceShareBlock(frameIndex, threadIndex, numDescPerFrame, numDescPerThread, maxWorkers);
 		HeapSlice cbvSlice = cbvSrvHeap->Offset(cbvSliceIndex);
-		HeapSlice texSlice = cbvSrvHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount);
-		HeapSlice matSlice = cbvSrvHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount);
-		HeapSlice shadowMapSlice = cbvSrvHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 2);
-		///////////////shadow test block
+		HeapSlice texSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetTextureSRGB);
+		HeapSlice matSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetMaterial);
+		HeapSlice shadowMapSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetShadowMap);
+
+		//shadow
 		CD3DX12_CPU_DESCRIPTOR_HANDLE shadowDSVOffsetHandle = static_cast<CD3DX12_CPU_DESCRIPTOR_HANDLE>(m_DX12Device.GetOffsetCPUHandle(
 			m_DX12Device.GetDX12DSVHeap()->GetDescHeap()->GetCPUDescriptorHandleForHeapStart(),
 			2 * m_DX12Device.GetDX12SwapChain()->GetSwapChainBufferCount(), // maind render + msaa render,
@@ -366,7 +366,6 @@ void RenderDX12::RecordAndSubmit_Single()
 		m_DX12FrameBuffer.EndShadowRender(m_DX12Device.GetDX12CommandList(), m_DX12Device.GetDX12ShadowManager());
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootDescriptorTable(3, shadowMapSlice.gpuDescHandle);
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetPipelineState(m_DX12Device.GetDX12PSO()->GetPipelineState(0));
-		//////////////
 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE tmpDSVOffsetHandle = static_cast<CD3DX12_CPU_DESCRIPTOR_HANDLE>(m_DX12Device.GetOffsetCPUHandle(
 			m_DX12Device.GetDX12DSVHeap()->GetDescHeap()->GetCPUDescriptorHandleForHeapStart(),
@@ -379,6 +378,7 @@ void RenderDX12::RecordAndSubmit_Single()
 		PIXEndEvent(m_DX12Device.GetDX12CommandList()->GetCommandList()); //pix frame start setting marking end
 		PIXBeginEvent(m_DX12Device.GetDX12CommandList()->GetCommandList(), PIX_COLOR(0, 128, 255), L"MainDraw (%d items)", m_DX12Device.GetRenderItemSize()); //pix marking ~ main draw
 #endif
+		//main pass
 		for (int renderItemIndex = 0; renderItemIndex < m_DX12Device.GetRenderItemSize(); renderItemIndex++)
 		{
 			UINT matIndex = m_DX12Device.GetDX12RenderItem(renderItemIndex).GetMaterialIndex();
@@ -488,7 +488,7 @@ void RenderDX12::RecordAndSubmit_Multi()
 
 	m_DX12FrameBuffer.BeginShadowRender(m_DX12Device.GetDX12CommandList(), m_DX12Device.GetDX12ShadowManager(), shadowDSVOffsetHandle);
 
-	auto* cbvSrvHeap = m_DX12Device.GetDX12CBVSRVHeap();
+	auto* cbvSrvHeap = m_DX12Device.GetDX12SRVHeap();
 	constexpr uint32_t numDescPerFrame = EngineConfig::ConstantBufferCount;
 	constexpr uint32_t numDescPerThread = 0;
 	constexpr uint32_t maxWorkers = 0;
@@ -512,9 +512,9 @@ void RenderDX12::RecordAndSubmit_Multi()
 
 	uint32_t cbvSliceIndex = cbvSrvHeap->CalcHeapSliceShareBlock(frameIndex, threadIndex, numDescPerFrame, numDescPerThread, maxWorkers);
 	HeapSlice cbvSlice = cbvSrvHeap->Offset(cbvSliceIndex);
-	HeapSlice texSlice = cbvSrvHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount);
-	HeapSlice matSlice = cbvSrvHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount);
-	HeapSlice shadowMapSlice = cbvSrvHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 2);
+	HeapSlice texSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetTextureSRGB);
+	HeapSlice matSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetMaterial);
+	HeapSlice shadowMapSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetShadowMap);
 
 	if (numWorkers > 0)
 	{

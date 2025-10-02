@@ -251,7 +251,7 @@ void DX12FrameBuffer::SetShadowRenderViewPort(DX12CommandList* dx12CommandList, 
 }
 
 //for ray-tracing
-void DX12FrameBuffer::CopyTextureToBackBuffer(DX12CommandList* dx12CommandList, DX12RayTracingManager* dx12RayTracingManager, UINT currBackBufferIndex)
+void DX12FrameBuffer::CopyRayTracingOutToBackBuffer(DX12CommandList* dx12CommandList, DX12RayTracingManager* dx12RayTracingManager, UINT currBackBufferIndex)
 {
 	// RayOut: UAV -> COPY_SOURCE, BackBuffer: RT -> COPY_DEST
 	dx12RayTracingManager->GetRayOut()->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_COPY_SOURCE);

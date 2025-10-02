@@ -40,7 +40,7 @@ public:
 
 	inline ID3D12Device5* GetDevice() const noexcept { return m_device.Get(); }
 	inline DX12DescriptorHeap* GetDX12RTVHeap() const noexcept { return m_DX12RTVHeap.get(); }
-	inline DX12DescriptorHeap* GetDX12CBVSRVHeap() const noexcept { return m_DX12SRVHeap.get(); }
+	inline DX12DescriptorHeap* GetDX12SRVHeap() const noexcept { return m_DX12SRVHeap.get(); }
 	inline DX12DescriptorHeap* GetDX12ImGuiHeap() const noexcept { return m_DX12ImGuiHeap.get(); }
 	inline DX12DescriptorHeap* GetDX12DSVHeap() const noexcept { return m_DX12DSVHeap.get(); }
 	inline DX12CommandList* GetDX12CommandList() const noexcept { return m_DX12CommandList.get(); }
@@ -105,7 +105,6 @@ private:
 	//initial resources
 	uint32_t m_currBackBufferIndex = 0;
 	std::vector<std::unique_ptr<DX12FrameResource>> m_DX12FrameResource;
-	std::vector<std::unique_ptr<DX12RenderGeometry>> m_DX12RenderGeometry;
 	std::vector<std::unique_ptr<DX12TextureManager>> m_DX12TextureManager;
 	std::unique_ptr<DX12MaterialConstantManager> m_DX12MaterialConstantManager;
 
@@ -139,10 +138,7 @@ private:
 
 	//for ray-tracing
 	bool m_rtxSupported = false;
-
-	// TLAS/BLAS
 	std::unique_ptr<DX12RayTracingManager> m_DX12RayTracingManager;
-
 	std::vector<uint32_t> m_indices;
 	std::vector<DirectX::XMFLOAT3> m_positions;
 	std::vector<DirectX::XMFLOAT3> m_normals;

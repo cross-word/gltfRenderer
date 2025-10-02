@@ -45,7 +45,7 @@ public:
     void SetShadowRenderViewPort(DX12CommandList* dx12CommandList, DX12ShadowManager* dx12ShadowManager, D3D12_CPU_DESCRIPTOR_HANDLE shadowDepthStencilCPUHandle);
 
     //for ray-tracing
-    void CopyTextureToBackBuffer(DX12CommandList* dx12CommandList, DX12RayTracingManager* dx12RayTracingManager, UINT currBackBufferIndex);
+    void CopyRayTracingOutToBackBuffer(DX12CommandList* dx12CommandList, DX12RayTracingManager* dx12RayTracingManager, UINT currBackBufferIndex);
 private:
     void CreateRenderTargetsAndViews(DX12Device* dx12Device);
     void CreateDepthStencilAndView(DX12Device* dx12Device);
