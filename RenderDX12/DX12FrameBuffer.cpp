@@ -251,67 +251,17 @@ void DX12FrameBuffer::SetShadowRenderViewPort(DX12CommandList* dx12CommandList, 
 }
 
 //for ray-tracing
-void DX12FrameBuffer::DispatchRays(
-	ID3D12GraphicsCommandList4* commandList,
-	DX12DescriptorHeap* dx12DescriptorHeap,
-	DX12RayTracingManager* dx12RayTracingManager,
-	ID3D12RootSignature* rootSignature,
-	UINT with,
-	UINT height)
+void DX12FrameBuffer::CopyTextureToBackBuffer(DX12CommandList* dx12CommandList, DX12RayTracingManager* dx12RayTracingManager, UINT currBackBufferIndex)
 {
-	ID3D12DescriptorHeap* heaps[] = { dx12DescriptorHeap->GetDescHeap() };
-	commandList->SetDescriptorHeaps(_countof(heaps), heaps);
-
-	// DXR 파이프라인 바인딩
-	commandList->SetPipelineState1(dx12RayTracingManager->GetStateObject());
-	commandList->SetComputeRootSignature(rootSignature);
-
-	// 글로벌 RS에 테이블 바인딩
-	commandList->SetComputeRootDescriptorTable(0, dx12DescriptorHeap->Offset(0).gpuDescHandle);
-	commandList->SetComputeRootDescriptorTable(1, dx12DescriptorHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount).gpuDescHandle);
-	commandList->SetComputeRootDescriptorTable(2, dx12DescriptorHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount).gpuDescHandle);
-	commandList->SetComputeRootDescriptorTable(3, dx12DescriptorHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 2).gpuDescHandle);
-	UINT rtRootConstants[3] = { 10,10,10 };//instant
-	commandList->SetComputeRoot32BitConstants(4, 3, rtRootConstants, 0);
-	commandList->SetComputeRootDescriptorTable(5, dx12DescriptorHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 3).gpuDescHandle);
-	commandList->SetComputeRootDescriptorTable(6, dx12DescriptorHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 4).gpuDescHandle);
-	commandList->SetComputeRootDescriptorTable(7, dx12DescriptorHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 5).gpuDescHandle);
-	commandList->SetComputeRootDescriptorTable(8, dx12DescriptorHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 6).gpuDescHandle);
-
-	D3D12_DISPATCH_RAYS_DESC desc{};
-	desc.RayGenerationShaderRecord.StartAddress = dx12RayTracingManager->GetRayGenShaderTable()->GetGPUVirtualAddress();
-	desc.RayGenerationShaderRecord.SizeInBytes = dx12RayTracingManager->GetRayGenShaderTable()->GetDesc().Width;
-
-	desc.MissShaderTable.StartAddress = dx12RayTracingManager->GetMissShaderTable()->GetGPUVirtualAddress();
-	desc.MissShaderTable.SizeInBytes = dx12RayTracingManager->GetMissShaderTable()->GetDesc().Width;
-	desc.MissShaderTable.StrideInBytes = desc.MissShaderTable.SizeInBytes / 2; // "Miss","ShadowMiss"
-
-	desc.HitGroupTable.StartAddress = dx12RayTracingManager->GetHitShaderTable()->GetGPUVirtualAddress();
-	desc.HitGroupTable.SizeInBytes = dx12RayTracingManager->GetHitShaderTable()->GetDesc().Width;
-	desc.HitGroupTable.StrideInBytes = desc.HitGroupTable.SizeInBytes / 2;     // "HitGroup","ShadowHitGroup"
-
-	desc.Width = with;
-	desc.Height = height;
-	desc.Depth = 1;
-
-	commandList->DispatchRays(&desc);
-}
-
-void DX12FrameBuffer::CopyTextureToBackBuffer(DX12CommandList* cl, DX12RayTracingManager* dx12RayTracingManager, UINT backIdx)
-{
-	auto* cmd = cl->GetCommandList();
-	auto* dst = m_DX12RenderTargets[backIdx].get(); // 스왑체인 백버퍼
-	auto* src = dx12RayTracingManager->GetRayOut();
-
 	// RayOut: UAV -> COPY_SOURCE, BackBuffer: RT -> COPY_DEST
-	src->TransitionState(cl, D3D12_RESOURCE_STATE_COPY_SOURCE);
-	dst->TransitionState(cl, D3D12_RESOURCE_STATE_COPY_DEST);
-	cl->RecordResourceStateTransition();
+	dx12RayTracingManager->GetRayOut()->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	m_DX12RenderTargets[currBackBufferIndex]->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_COPY_DEST);
+	dx12CommandList->RecordResourceStateTransition();
 
-	cmd->CopyResource(dst->GetResource(), src->GetResource());
+	dx12CommandList->GetCommandList()->CopyResource(m_DX12RenderTargets[currBackBufferIndex]->GetResource(), dx12RayTracingManager->GetRayOut()->GetResource());
 
 	// RayOut: COPY_SOURCE -> UAV, BackBuffer: COPY_DEST -> RT(for imgui)
-	src->TransitionState(cl, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	dst->TransitionState(cl, D3D12_RESOURCE_STATE_RENDER_TARGET);
-	cl->RecordResourceStateTransition();
+	dx12RayTracingManager->GetRayOut()->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	m_DX12RenderTargets[currBackBufferIndex]->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	dx12CommandList->RecordResourceStateTransition();
 }

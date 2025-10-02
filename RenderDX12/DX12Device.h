@@ -76,7 +76,7 @@ public:
 
 	//for ray-tracing
 	bool IsDXRAvailable() const noexcept { return m_rtxSupported; }
-	inline DX12RayTracingManager* GetRayTracingManager() const { return m_DX12RayTracingManager.get(); }
+	inline DX12RayTracingManager* GetDX12RayTracingManager() const { return m_DX12RayTracingManager.get(); }
 	void ResizeRTOut();
 private:
 	void InitDX12CommandList(ID3D12CommandAllocator* commandAllocator);

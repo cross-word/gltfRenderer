@@ -39,6 +39,32 @@ struct Attributes
 };
 
 static const uint MAX_RAY_DEPTH = 1;
+#ifndef NUM_RAY_SAMPLES
+#define NUM_RAY_SAMPLES 4
+#endif
+
+uint Hash(uint value)
+{
+    value ^= value >> 16;
+    value *= 0x7feb352du;
+    value ^= value >> 15;
+    value *= 0x846ca68bu;
+    value ^= value >> 16;
+    return value;
+}
+
+float RandomFloat(uint seed)
+{
+    return (float)(Hash(seed)) * 2.3283064365386963e-10f;
+}
+
+float2 GenerateSubpixelJitter(uint2 pixel, uint sampleIdx, uint frameSeed)
+{
+    uint seed = pixel.x * 374761393u + pixel.y * 668265263u + frameSeed * 362437u + sampleIdx * 1231u;
+    float jx = RandomFloat(seed);
+    float jy = RandomFloat(seed + 1u);
+    return float2(jx, jy);
+}
 static uint GeoIndex() { return InstanceID(); }
 
 float3 EvaluateEnvironment(float3 dir)
@@ -277,26 +303,36 @@ void RayGen()
     uint2 pixel = DispatchRaysIndex().xy;
     uint2 dim = DispatchRaysDimensions().xy;
 
-    float2 uv = (float2(pixel) + 0.5f) / float2(dim);
-    float2 ndc = float2(uv.x * 2.0f - 1.0f, 1.0f - uv.y * 2.0f);
+    float3 accumulatedRadiance = 0.0f;
+    uint frameSeed = asuint(gTotalTime * 1000.0f);
 
-    float4 target = mul(float4(ndc, 0.0f, 1.0f), gInvProj);
-    target.xyz /= target.w;
-    float3 world = mul(float4(target.xyz, 1.0f), gInvView).xyz;
+    [loop]
+        for (uint sampleIdx = 0; sampleIdx < NUM_RAY_SAMPLES; ++sampleIdx)
+        {
+            float2 jitter = GenerateSubpixelJitter(pixel, sampleIdx, frameSeed);
+            float2 sampleUv = (float2(pixel) + jitter) / float2(dim);
+            float2 ndc = float2(sampleUv.x * 2.0f - 1.0f, 1.0f - sampleUv.y * 2.0f);
 
-    RayDesc ray;
-    ray.Origin = gEyePosW;
-    ray.Direction = normalize(world - gEyePosW);
-    ray.TMin = 0.001f;
-    ray.TMax = 1e38f;
+            float4 target = mul(float4(ndc, 0.0f, 1.0f), gInvProj);
+            target.xyz /= target.w;
+            float3 world = mul(float4(target.xyz, 1.0f), gInvView).xyz;
 
-    RadiancePayload payload;
-    payload.radiance = 0.0f;
-    payload.depth = 0;
+            RayDesc ray;
+            ray.Origin = gEyePosW;
+            ray.Direction = normalize(world - gEyePosW);
+            ray.TMin = 0.001f;
+            ray.TMax = 1e38f;
 
-    TraceRay(gScene, RAY_FLAG_NONE, 0xFF, 0, 2, 0, ray, payload);
+            RadiancePayload payload;
+            payload.radiance = 0.0f;
+            payload.depth = 0;
 
-    gOutput[pixel] = float4(payload.radiance, 1.0f);
+            TraceRay(gScene, RAY_FLAG_NONE, 0xFF, 0, 2, 0, ray, payload);
+
+
+            accumulatedRadiance += payload.radiance;
+        }
+    gOutput[pixel] = float4(accumulatedRadiance / NUM_RAY_SAMPLES, 1.0f);
 }
 
 [shader("miss")]
