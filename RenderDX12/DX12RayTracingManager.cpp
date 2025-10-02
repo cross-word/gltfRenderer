@@ -36,7 +36,7 @@ void DX12RayTracingManager::InitBLAS(ID3D12Device5* device, DX12CommandList* dx1
 
 		D3D12_RAYTRACING_GEOMETRY_DESC geoDesc{};
 		geoDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-		geoDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+		geoDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
 		geoDesc.Triangles.Transform3x4 = 0;
 		geoDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
 		geoDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;

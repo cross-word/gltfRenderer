@@ -1,7 +1,26 @@
 //***************************************************************************************
 // RayTracing.hlsl - Ray tracing shader approximating Default.hlsl lighting.
 //***************************************************************************************
+// Defaults for number of lights.
+#ifndef NUM_DIR_LIGHTS
+#define NUM_DIR_LIGHTS 1
+#endif
 
+#ifndef NUM_POINT_LIGHTS
+#define NUM_POINT_LIGHTS 0
+#endif
+
+#ifndef NUM_SPOT_LIGHTS
+#define NUM_SPOT_LIGHTS 24
+#endif
+
+#ifndef NUM_TEXTURE
+#define NUM_TEXTURE 72
+#endif
+
+#ifndef NUM_LIGHTS
+#define NUM_LIGHTS 25
+#endif
 #include "Common.hlsl"
 
 RaytracingAccelerationStructure gScene : register(t0, space4);
@@ -105,31 +124,6 @@ float SampleAlpha(uint primitiveIndex, float2 barycentrics)
     return diffuseAlbedo.a;
 }
 
-float ComputeLOD(float t /*RayTCurrent()*/, float texelsPerMeter, uint mips)
-{
-    float fp = max(1e-3, t * texelsPerMeter);      // 히트 거리 * 텍셀 밀도
-    float lod = log2(fp);                          // 대략적 LOD
-    return clamp(lod, 0.0f, (float)(mips - 1));
-}
-
-float TexelsPerMeter(float2 uv0, float2 uv1, float2 uv2,
-    float3 p0, float3 p1, float3 p2, uint texW, uint texH)
-{
-    float2 duv1 = uv1 - uv0, duv2 = uv2 - uv0;
-    float3 dp1 = p1 - p0, dp2 = p2 - p0;
-    float det = duv1.x * duv2.y - duv1.y * duv2.x;
-    if (abs(det) < 1e-6) return max(texW, texH);   // 퇴화 삼각형 보호
-
-    // 월드 미터당 UV 변화량의 역수를 이용해 텍셀/미터 근사
-    float3 dpdu = (dp1 * duv2.y - dp2 * duv1.y) / det;
-    float3 dpdv = (-dp1 * duv2.x + dp2 * duv1.x) / det;
-    float metersPerU = length(dpdu);
-    float metersPerV = length(dpdv);
-    float texelPerU = texW / max(1e-4, metersPerU);
-    float texelPerV = texH / max(1e-4, metersPerV);
-    return max(texelPerU, texelPerV);
-}
-
 float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayload payload, out float outAlpha)
 {
     GeometryMetadata geo = gGeometryTable[GeoIndex()];
@@ -187,14 +181,7 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
 
     if (matData.DiffuseMapIndex < NUM_TEXTURE)
     {
-        //diffuseAlbedo *= gTextureMapsSRGB[matData.DiffuseMapIndex].SampleLevel(gsamAnisotropicWrap, tex, 0);
-        uint tw, th, mips;
-        gTextureMapsSRGB[matData.DiffuseMapIndex].GetDimensions(0, tw, th, mips);
-        float t = RayTCurrent();
-        float tpm = TexelsPerMeter(uv0, uv1, uv2, p0, p1, p2, tw, th);
-        float lod = ComputeLOD(t, tpm, mips);
-        lod = clamp(lod - 1.25, 0.0f, min((float)mips - 1.0f, 4.0f));
-        diffuseAlbedo *= gTextureMapsSRGB[matData.DiffuseMapIndex].SampleLevel(gsamAnisotropicWrap, tex, lod);
+        diffuseAlbedo *= gTextureMapsSRGB[matData.DiffuseMapIndex].SampleLevel(gsamAnisotropicWrap, tex, 0);
     }
     else
         diffuseAlbedo = matData.DiffuseAlbedo;
@@ -208,35 +195,19 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
     float3 bumpedNormal = normalW;
     if (matData.NormalMapIndex < NUM_TEXTURE)
     {
-        //float3 normalMapSample = gTextureMapsLinear[matData.NormalMapIndex].SampleLevel(gsamAnisotropicWrap, tex, 0).rgb;
-        //bumpedNormal = NormalSampleToWorldSpace(normalMapSample, normalW, tangent, matData.gNormalScale);
-
-        uint tw, th, mips;
-        gTextureMapsLinear[matData.NormalMapIndex].GetDimensions(0, tw, th, mips);
-        float t = RayTCurrent();
-        float tpm = TexelsPerMeter(uv0, uv1, uv2, p0, p1, p2, tw, th);
-        float lod = ComputeLOD(t, tpm, mips);
-        lod = clamp(lod - 1.25, 0.0f, min((float)mips - 1.0f, 4.0f));
-        float3 normalMapSample = gTextureMapsLinear[matData.NormalMapIndex].SampleLevel(gsamAnisotropicWrap, tex, lod).rgb;
+        float3 normalMapSample = gTextureMapsLinear[matData.NormalMapIndex].SampleLevel(gsamAnisotropicWrap, tex, 0).rgb;
         bumpedNormal = NormalSampleToWorldSpace(normalMapSample, normalW, tangent, matData.gNormalScale);
     }
 
     float3 orm = float3(1.0f, 1.0f, 0.0f);
     if (matData.gORMIdx < NUM_TEXTURE)
     {
-        //orm = gTextureMapsLinear[matData.gORMIdx].SampleLevel(gsamAnisotropicWrap, tex, 0).rgb;
-        uint tw, th, mips;
-        gTextureMapsLinear[matData.gORMIdx].GetDimensions(0, tw, th, mips);
-        float t = RayTCurrent();
-        float tpm = TexelsPerMeter(uv0, uv1, uv2, p0, p1, p2, tw, th);
-        float lod = ComputeLOD(t, tpm, mips);
-        lod = clamp(lod - 1.25, 0.0f, min((float)mips - 1.0f, 4.0f));
-        orm = gTextureMapsLinear[matData.gORMIdx].SampleLevel(gsamAnisotropicWrap, tex, lod).rgb;
+        orm = gTextureMapsLinear[matData.gORMIdx].SampleLevel(gsamAnisotropicWrap, tex, 0).rgb;
     }
 
     float ambientOcclusion = lerp(1.0f, orm.r, saturate(matData.gOcclusionStrength));
-    //roughness = clamp(saturate(roughness * orm.g), 0.45f, 0.90f);
-    roughness = saturate(roughness * orm.g);
+    roughness = clamp(saturate(roughness * orm.g), 0.45f, 0.90f);
+    //roughness = saturate(roughness * orm.g);
     float metal = saturate(matData.gMetallic * orm.b);
 
     const float shininess = (1.0f - roughness) * (1.0f - roughness);
@@ -281,17 +252,11 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
     float3 emissive = matData.gEmissiveFactor;
     if (matData.gEmissiveIdx < NUM_TEXTURE)
     {
-        //emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].SampleLevel(gsamLinearWrap, tex, 0).rgb;
-        uint tw, th, mips;
-        gTextureMapsSRGB[matData.gEmissiveIdx].GetDimensions(0, tw, th, mips);
-        float t = RayTCurrent();
-        float tpm = TexelsPerMeter(uv0, uv1, uv2, p0, p1, p2, tw, th);
-        float lod = ComputeLOD(t, tpm, mips);
-        lod = clamp(lod - 1.25, 0.0f, min((float)mips - 1.0f, 4.0f));
-        emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].SampleLevel(gsamLinearWrap, tex, lod).rgb;
+        emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].SampleLevel(gsamLinearWrap, tex, 0).rgb;
     }
 
     float3 lighting = ambient + direct + emissive * matData.gEmissiveStrength;
+    lighting.rgb = pow(saturate(lighting.rgb), 1.0 / 2.2);// gammma cor
 
     outAlpha = diffuseAlbedo.a;
     return lighting;
