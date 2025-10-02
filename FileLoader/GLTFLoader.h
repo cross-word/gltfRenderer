@@ -68,6 +68,9 @@ struct SceneData
     std::vector<MaterialTex>     materials;
     std::vector<std::wstring>    textures;
     std::vector<Light> lights;
+    int numDirectionalLight = 0;
+    int numPointLight = 0;
+    int numSpotLight = 0;
 };
 
 FileLoad_API SceneData LoadGLTFScene(const std::wstring& filename);

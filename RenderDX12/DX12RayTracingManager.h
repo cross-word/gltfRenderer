@@ -38,7 +38,7 @@ public:
 		ID3D12GraphicsCommandList4* commandList,
 		const std::vector<std::unique_ptr<DX12RenderGeometry>>& dx12RenderGeometry,
 		std::vector<Render::RenderItem>& renderItem);
-	void InitRayTracingPipeline(ID3D12Device5* device, ID3D12RootSignature* globalRootSignature);
+	void InitRayTracingPipeline(ID3D12Device5* device, ID3D12RootSignature* globalRootSignature, std::vector<std::string>& shaderMacros);
 	void CreateShaderTable(ID3D12Device5* device);
 	void InitRayOut(ID3D12Device5* device, DX12CommandList* dx12CommandList, DX12DescriptorHeap* dx12DescriptorHeap, UINT width, UINT height);
 	void BuildRayGeometryBuffers(

@@ -4,8 +4,9 @@
 // Contains API for shader lighting.
 //***************************************************************************************
 
-#define MaxLights 25
-
+#ifndef NUM_LIGHTS
+#define NUM_LIGHTS 25
+#endif
 struct Light
 {
     float3 Color;   float Intensity;   // dir: lux, point/spot: cd
@@ -102,7 +103,7 @@ float3 ComputeSpotLight(Light L, Material mat, float3 objectPosition, float3 nor
 }
 
 // ------------------------------------------------------------
-float4 ComputeLighting(Light gLights[MaxLights], Material mat,
+float4 ComputeLighting(Light gLights[NUM_LIGHTS], Material mat,
     float3 objectPosition, float3 normal, float3 toEye, float3 shadowFactor)
 {
     float3 sumL = 0.0f;

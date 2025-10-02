@@ -156,11 +156,17 @@ void DX12Device::InitShader()
 	ID3DBlob* errorBlob = nullptr;
 
 	std::string poolMax = std::to_string(EngineConfig::MaxTextureCount);
-	std::string numLight = std::to_string(m_sceneData.lights.size() + 1);
+	std::string numLight = std::to_string(m_sceneData.lights.size() + 1); //default sunlight + 1
+	std::string numDirLight = std::to_string(m_sceneData.numDirectionalLight + 1); //default sunlight + 1
+	std::string numPointLight = std::to_string(m_sceneData.numPointLight);
+	std::string numSpotLight = std::to_string(m_sceneData.numSpotLight);
 	D3D_SHADER_MACRO macros[] =
 	{
 		{ "NUM_TEXTURE", poolMax.c_str() },
 		{ "NUM_LIGHTS", numLight.c_str()},
+		{ "NUM_DIR_LIGHTS", numDirLight.c_str()},
+		{ "NUM_POINT_LIGHTS", numPointLight.c_str()},
+		{ "NUM_SPOT_LIGHTS", numSpotLight.c_str()},
 		{ nullptr, nullptr }
 	};
 
@@ -590,7 +596,19 @@ void DX12Device::InitDXRayTracing()
 		m_geoTable);
 
 	//state object
-	m_DX12RayTracingManager->InitRayTracingPipeline(m_device.Get(), m_DX12RootSignature->GetRayTracingRootSignature());
+	std::string poolMax = std::to_string(EngineConfig::MaxTextureCount);
+	std::string numLight = std::to_string(m_sceneData.lights.size() + 1); //default sunlight + 1
+	std::string numDirLight = std::to_string(m_sceneData.numDirectionalLight + 1); //default sunlight + 1
+	std::string numPointLight = std::to_string(m_sceneData.numPointLight);
+	std::string numSpotLight = std::to_string(m_sceneData.numSpotLight);
+	std::vector<std::string> macros;
+	macros.push_back(poolMax);
+	macros.push_back(numLight);
+	macros.push_back(numDirLight);
+	macros.push_back(numPointLight);
+	macros.push_back(numSpotLight);
+
+	m_DX12RayTracingManager->InitRayTracingPipeline(m_device.Get(), m_DX12RootSignature->GetRayTracingRootSignature(), macros);
 	//shader table
 	m_DX12RayTracingManager->CreateShaderTable(m_device.Get());
 }

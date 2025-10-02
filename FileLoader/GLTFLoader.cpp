@@ -216,7 +216,8 @@ inline int LightTypeToInt(const std::string& t)
 void CollectGLTFLights(
     const tinygltf::Model& model,
     const std::vector<XMFLOAT4X4>& nodeWorldsLH,
-    std::vector<Light>& out)
+    std::vector<Light>& out,
+    SceneData& sceneData)
 {
     out.clear();
 
@@ -251,16 +252,28 @@ void CollectGLTFLights(
         g.Type = LightTypeToInt(L.type);
         g.Range = (L.range > 0.0) ? (float)L.range : -1.0f;
 
-        if (g.Type == LIGHT_TYPE_SPOT)
+        switch (g.Type)
         {
-            g.InnerCos = cosf((float)L.spot.innerConeAngle);
-            g.OuterCos = cosf((float)L.spot.outerConeAngle);
+            case(LIGHT_TYPE_DIRECTIONAL):
+            {
+                g.InnerCos = 0.0f; g.OuterCos = -1.0f;
+                sceneData.numDirectionalLight++;
+                break;
+            }
+            case(LIGHT_TYPE_POINT):
+            {
+                g.InnerCos = 0.0f; g.OuterCos = -1.0f;
+                sceneData.numPointLight++;
+                break;
+            }
+            case(LIGHT_TYPE_SPOT):
+            {
+                g.InnerCos = cosf((float)L.spot.innerConeAngle);
+                g.OuterCos = cosf((float)L.spot.outerConeAngle);
+                sceneData.numSpotLight++;
+                break;
+            }
         }
-        else
-        {
-            g.InnerCos = 0.0f; g.OuterCos = -1.0f;
-        }
-
         XMMATRIX W = XMLoadFloat4x4(&nodeWorldsLH[ni]);
         XMVECTOR dir = NodeWorldForward(W);
         XMVECTOR pos = NodeWorldPosition(W);
@@ -449,7 +462,7 @@ SceneData LoadGLTFScene(const std::wstring& filename)
     std::vector<XMFLOAT4X4> nodeWorldsLH;
     BuildNodeWorlds(model, nodeWorldsLH);
 
-    CollectGLTFLights(model, nodeWorldsLH, scene.lights);
+    CollectGLTFLights(model, nodeWorldsLH, scene.lights, scene);
 
     return scene;
 }

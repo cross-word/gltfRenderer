@@ -141,26 +141,25 @@ void DX12RayTracingManager::InitTLAS(
 	commandList->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
 }
 
-void DX12RayTracingManager::InitRayTracingPipeline(ID3D12Device5* device, ID3D12RootSignature* globalRootSignature)
+void DX12RayTracingManager::InitRayTracingPipeline(ID3D12Device5* device, ID3D12RootSignature* globalRootSignature, std::vector<std::string>& shaderMacros)
 {
-	ComPtr<IDxcUtils> utils;    DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&utils));
-	ComPtr<IDxcCompiler3> comp; DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&comp));
-	ComPtr<IDxcIncludeHandler> inc; utils->CreateDefaultIncludeHandler(&inc);
+	ComPtr<IDxcUtils> utils;
+	DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&utils));
+	ComPtr<IDxcCompiler3> compiler;
+	DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&compiler));
+	ComPtr<IDxcIncludeHandler> includeHandler;
+	utils->CreateDefaultIncludeHandler(&includeHandler);
 
-	ComPtr<IDxcBlobEncoding> src; utils->LoadFile(EngineConfig::ShaderRayTracingPath, nullptr, &src);
+	ComPtr<IDxcBlobEncoding> src;
+	utils->LoadFile(EngineConfig::ShaderRayTracingPath, nullptr, &src);
 	DxcBuffer buf{ src->GetBufferPointer(), src->GetBufferSize(), DXC_CP_UTF8 };
 
-	std::vector<LPCWSTR> common =
-	{
-	  L"-Zi", L"-Qembed_debug",
-	  L"-I", EngineConfig::ShaderDirectoryPath,
-	  L"-I", L"shaders",
-	  L"-D", L"NUM_TEXTURE=72",
-	};
-
-	std::vector<D3D12_DXIL_LIBRARY_DESC> libs; libs.reserve(5);
-	std::vector<D3D12_EXPORT_DESC> exps; exps.reserve(5);
-	std::vector<D3D12_STATE_SUBOBJECT> subs; subs.reserve(8);
+	std::vector<D3D12_DXIL_LIBRARY_DESC> libs;
+	libs.reserve(5);
+	std::vector<D3D12_EXPORT_DESC> exps;
+	exps.reserve(5);
+	std::vector<D3D12_STATE_SUBOBJECT> subs;
+	subs.reserve(8);
 
 	ComPtr<IDxcBlob> dxilLib;
 	{
@@ -168,17 +167,28 @@ void DX12RayTracingManager::InitRayTracingPipeline(ID3D12Device5* device, ID3D12
 		ThrowIfFailed(utils->LoadFile(EngineConfig::ShaderRayTracingPath, nullptr, &src));
 
 		DxcBuffer buf{ src->GetBufferPointer(), src->GetBufferSize(), DXC_CP_UTF8 };
+
+		std::wstring numTex = L"NUM_TEXTURE=" + AnsiToWString(shaderMacros[0]);
+		std::wstring numLight = L"NUM_LIGHTS=" + AnsiToWString(shaderMacros[1]);
+		std::wstring numDirLight = L"NUM_DIR_LIGHTS=" + AnsiToWString(shaderMacros[2]);
+		std::wstring numPointLight = L"NUM_POINT_LIGHTS=" + AnsiToWString(shaderMacros[3]);
+		std::wstring numSpotLight = L"NUM_SPOT_LIGHTS=" + AnsiToWString(shaderMacros[4]);
+
 		LPCWSTR argsLib[] =
 		{
 			L"-T", L"lib_6_5",
 			L"-Zi", L"-Qembed_debug",
 			L"-I", EngineConfig::ShaderDirectoryPath,
 			L"-I", L"shaders",
-			L"-D", L"NUM_TEXTURE=72",
+			L"-D", numTex.c_str(),
+			L"-D", numLight.c_str(),
+			L"-D", numDirLight.c_str(),
+			L"-D", numPointLight.c_str(),
+			L"-D", numSpotLight.c_str(),
 		};
 
 		ComPtr<IDxcResult> result;
-		ThrowIfFailed(comp->Compile(&buf, argsLib, _countof(argsLib), inc.Get(), IID_PPV_ARGS(&result)));
+		ThrowIfFailed(compiler->Compile(&buf, argsLib, _countof(argsLib), includeHandler.Get(), IID_PPV_ARGS(&result)));
 		ComPtr<IDxcBlobUtf8> errs;
 		result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errs), nullptr);
 		if (errs && errs->GetStringLength() > 0) OutputDebugStringA(errs->GetStringPointer());
