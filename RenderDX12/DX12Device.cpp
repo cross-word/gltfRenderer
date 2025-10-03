@@ -121,7 +121,7 @@ void DX12Device::InitDX12SRVHeap()
 		+ 1
 		+ 1
 		+ 1
-		+ 8, // 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors + 1 shadow map + 8 raytracing var
+		+ 11, // 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors + 1 shadow map + 11 raytracing var
 		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
 		D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
 }

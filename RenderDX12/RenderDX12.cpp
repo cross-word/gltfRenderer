@@ -277,6 +277,9 @@ void RenderDX12::RecordAndSubmit_Single()
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetPipelineState1(m_DX12Device.GetDX12RayTracingManager()->GetStateObject());
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootSignature(m_DX12Device.GetDX12RootSignature()->GetRayTracingRootSignature());
 
+		auto rayOutOffset = (sFrameId % 2 == 0) ? m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayOutput0) : m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayOutput1);
+		auto rayAccumOffset = (sFrameId % 2 == 0) ? m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayAccumulate1) : m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayAccumulate0);
+		m_DX12FrameBuffer.RayOutSwap(m_DX12Device.GetDX12CommandList(), m_DX12Device.GetDX12RayTracingManager(), sFrameId);
 		// descriptor binding
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(0, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetConstant).gpuDescHandle);
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(1, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetTextureSRGB).gpuDescHandle);
@@ -286,8 +289,9 @@ void RenderDX12::RecordAndSubmit_Single()
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRoot32BitConstants(4, 3, rtRootConstants, 0);
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(5, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayTLAS).gpuDescHandle);
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(6, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayGeometry).gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(7, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayOutput).gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(8, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayIndex).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(7, rayOutOffset.gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(8, rayAccumOffset.gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(9, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayIndex).gpuDescHandle);
 
 		D3D12_DISPATCH_RAYS_DESC desc{};
 		desc.RayGenerationShaderRecord.StartAddress = m_DX12Device.GetDX12RayTracingManager()->GetRayGenShaderTable()->GetGPUVirtualAddress();
@@ -309,7 +313,7 @@ void RenderDX12::RecordAndSubmit_Single()
 
 		// UAV -> BackBuffer
 		const UINT curr = m_DX12Device.GetDX12SwapChain()->GetSwapChain()->GetCurrentBackBufferIndex();
-		m_DX12FrameBuffer.CopyRayTracingOutToBackBuffer(m_DX12Device.GetDX12CommandList(), m_DX12Device.GetDX12RayTracingManager(), curr);
+		m_DX12FrameBuffer.CopyRayTracingOutToBackBuffer(m_DX12Device.GetDX12CommandList(), m_DX12Device.GetDX12RayTracingManager(), curr, sFrameId);
 	}
 	// rasterize block
 	else

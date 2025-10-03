@@ -26,7 +26,8 @@ public:
 	ID3D12Resource* GetRayGenShaderTable() const noexcept { return m_shaderTableRayGen->GetResource(); }
 	ID3D12Resource* GetMissShaderTable() const noexcept { return m_shaderTableMiss->GetResource(); }
 	ID3D12Resource* GetHitShaderTable() const noexcept { return m_shaderTableHit->GetResource(); }
-	DX12ResourceTexture* GetRayOut() const noexcept { return m_rayOutput.get(); }
+	DX12ResourceTexture* GetRayOut0() const noexcept { return m_rayOutput.get(); }
+	DX12ResourceTexture* GetRayOut1() const noexcept { return m_rayOutput1.get(); }
 
 public:
 	void InitBLAS(
@@ -71,9 +72,13 @@ private:
 	std::unique_ptr<DX12ResourceBuffer> m_shaderTableMiss;
 	std::unique_ptr<DX12ResourceBuffer> m_shaderTableHit;
 
-	// ray output
-	std::unique_ptr<DX12ResourceTexture> m_rayOutput;
-	std::unique_ptr<DX12View> m_rayOutputView;
+	// ray output ping-pong buffer for accumulation.
+	std::unique_ptr<DX12ResourceTexture> m_rayOutput; // odd frame: read(SRV), even frame: write(UAV)
+	std::unique_ptr<DX12View> m_rayOutputViewWrite;
+	std::unique_ptr<DX12View> m_rayOutputViewRead;
+	std::unique_ptr<DX12ResourceTexture> m_rayOutput1; // odd frame: write(UAV), even frame: read(SRV)
+	std::unique_ptr<DX12View> m_rayOutputViewWrite1;
+	std::unique_ptr<DX12View> m_rayOutputViewRead1;
 
 	// ray var buffers
 	std::unique_ptr<DX12ResourceBuffer> m_globalIndexBuffer;

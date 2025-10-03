@@ -90,7 +90,7 @@ void DX12RootSignature::CreateRasterizeRootSignature(ID3D12Device* device)
 void DX12RootSignature::CreateRayTracingRootSignature(ID3D12Device* device)
 {
 	// Root parameter can be a table, root descriptor or root constants.
-	CD3DX12_ROOT_PARAMETER1 slotRootParameter[9];
+	CD3DX12_ROOT_PARAMETER1 slotRootParameter[10];
 
 	// Create a single descriptor table of CBVs.
 	CD3DX12_DESCRIPTOR_RANGE1 cbvTable;
@@ -144,8 +144,10 @@ void DX12RootSignature::CreateRayTracingRootSignature(ID3D12Device* device)
 		0,
 		4); //t0 space4 TLAS
 
-	//u0 space0
+	//u0, u1 space0
 	CD3DX12_DESCRIPTOR_RANGE1 RayOutTable(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0); //u0 space0 RayOut
+	CD3DX12_DESCRIPTOR_RANGE1 RayOutPrevTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 4); //t1 space4 accumulate
+	//CD3DX12_DESCRIPTOR_RANGE1 RayOutCurrentTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 4); //t2 space4 accumulate
 
 	//t0~4 space3
 	CD3DX12_DESCRIPTOR_RANGE1 rayVar(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 0, 3);
@@ -161,10 +163,12 @@ void DX12RootSignature::CreateRayTracingRootSignature(ID3D12Device* device)
 	slotRootParameter[5].InitAsDescriptorTable(1, &TLASTable, D3D12_SHADER_VISIBILITY_ALL);
 	slotRootParameter[6].InitAsDescriptorTable(1, &srvTableGeo, D3D12_SHADER_VISIBILITY_ALL);
 	slotRootParameter[7].InitAsDescriptorTable(1, &RayOutTable, D3D12_SHADER_VISIBILITY_ALL);
-	slotRootParameter[8].InitAsDescriptorTable(1, &rayVar, D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[8].InitAsDescriptorTable(1, &RayOutPrevTable, D3D12_SHADER_VISIBILITY_ALL);
+	//slotRootParameter[9].InitAsDescriptorTable(1, &RayOutCurrentTable, D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[9].InitAsDescriptorTable(1, &rayVar, D3D12_SHADER_VISIBILITY_ALL);
 
 	const UINT samplerSize = SizeToU32(staticSamplers.size());
-	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc(9, slotRootParameter, samplerSize, staticSamplers.data(), D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc(10, slotRootParameter, samplerSize, staticSamplers.data(), D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	ComPtr<ID3DBlob> signature = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;

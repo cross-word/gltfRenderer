@@ -251,17 +251,29 @@ void DX12FrameBuffer::SetShadowRenderViewPort(DX12CommandList* dx12CommandList, 
 }
 
 //for ray-tracing
-void DX12FrameBuffer::CopyRayTracingOutToBackBuffer(DX12CommandList* dx12CommandList, DX12RayTracingManager* dx12RayTracingManager, UINT currBackBufferIndex)
+void DX12FrameBuffer::CopyRayTracingOutToBackBuffer(DX12CommandList* dx12CommandList, DX12RayTracingManager* dx12RayTracingManager, UINT currBackBufferIndex, UINT frameId)
 {
-	// RayOut: UAV -> COPY_SOURCE, BackBuffer: RT -> COPY_DEST
-	dx12RayTracingManager->GetRayOut()->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	// currRayOut: UAV -> COPY_SOURCE, BackBuffer: RT -> COPY_DEST
+	auto currRayOut = (frameId % 2 == 0) ? dx12RayTracingManager->GetRayOut0() : dx12RayTracingManager->GetRayOut1();
+
+	currRayOut->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_COPY_SOURCE);
 	m_DX12RenderTargets[currBackBufferIndex]->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_COPY_DEST);
 	dx12CommandList->RecordResourceStateTransition();
 
-	dx12CommandList->GetCommandList()->CopyResource(m_DX12RenderTargets[currBackBufferIndex]->GetResource(), dx12RayTracingManager->GetRayOut()->GetResource());
+	dx12CommandList->GetCommandList()->CopyResource(m_DX12RenderTargets[currBackBufferIndex]->GetResource(), currRayOut->GetResource());
 
-	// RayOut: COPY_SOURCE -> UAV, BackBuffer: COPY_DEST -> RT(for imgui)
-	dx12RayTracingManager->GetRayOut()->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	// BackBuffer: COPY_DEST -> RT(for imgui)
 	m_DX12RenderTargets[currBackBufferIndex]->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	dx12CommandList->RecordResourceStateTransition();
+}
+
+void DX12FrameBuffer::RayOutSwap(DX12CommandList* dx12CommandList, DX12RayTracingManager* dx12RayTracingManager, UINT frameId)
+{
+	// currRayOut: SRV -> UAV, prevRayOut: COPY_SOURCE -> SRV
+	auto currRayOut = (frameId % 2 == 0) ? dx12RayTracingManager->GetRayOut0() : dx12RayTracingManager->GetRayOut1();
+	auto prevRayOut = (frameId % 2 == 0) ? dx12RayTracingManager->GetRayOut1() : dx12RayTracingManager->GetRayOut0();
+
+	currRayOut->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	prevRayOut->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 	dx12CommandList->RecordResourceStateTransition();
 }

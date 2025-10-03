@@ -6,6 +6,7 @@
 
 RaytracingAccelerationStructure gScene : register(t0, space4);
 RWTexture2D<float4> gOutput : register(u0);
+Texture2D<float4> gAccumOutput : register(t1, space4);
 
 struct GeometryMetadata
 {
@@ -41,6 +42,9 @@ struct Attributes
 static const uint MAX_RAY_DEPTH = 1;
 #ifndef NUM_RAY_SAMPLES
 #define NUM_RAY_SAMPLES 4
+#endif
+#ifndef TEMPORAL_ALPHA
+#define TEMPORAL_ALPHA 0.1f
 #endif
 
 uint Hash(uint value)

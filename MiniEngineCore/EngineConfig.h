@@ -37,6 +37,7 @@ struct EngineConfig
     static inline const std::wstring kShaderPathS = MakePath(LR"(..\..\..\Shaders\Default.hlsl)");
     static inline const std::wstring kShadowShaderPathS = MakePath(LR"(..\..\..\Shaders\Shadows.hlsl)");
     static inline const std::wstring kScenePathS = MakePath(LR"(..\..\..\..\main_sponza\NewSponza_Main_glTF_003.gltf)");
+    //static inline const std::wstring kScenePathS = MakePath(LR"(..\..\..\..\barrel\medieval_barrel.gltf)");
     static inline const std::wstring kShaderRayTracingPathS = MakePath(LR"(..\..\..\Shaders\RayTracing.hlsl)");
     static inline const std::wstring kShaderDirectoryPathS = MakePath(LR"(..\..\..\Shaders)");
     static inline const wchar_t* ShaderFilePath = kShaderPathS.c_str();

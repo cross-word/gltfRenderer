@@ -320,7 +320,7 @@ void DX12RayTracingManager::CreateShaderTable(ID3D12Device5* device)
 
 void DX12RayTracingManager::InitRayOut(ID3D12Device5* device, DX12CommandList* dx12CommandList, DX12DescriptorHeap* dx12DescriptorHeap, UINT width, UINT height)
 {
-	// ray output texture (UAV)
+	// ray output texture
 	m_rayOutput = std::make_unique<DX12ResourceTexture>();
 	m_rayOutput->CreateUAVTexture(
 		device,
@@ -328,21 +328,72 @@ void DX12RayTracingManager::InitRayOut(ID3D12Device5* device, DX12CommandList* d
 		height,
 		DXGI_FORMAT_R8G8B8A8_UNORM);
 
-	auto uavCPU = dx12DescriptorHeap->Offset(SRVOffset::SRVOffsetRayOutput).cpuDescHandle;
-	auto uavGPU = dx12DescriptorHeap->Offset(SRVOffset::SRVOffsetRayOutput).gpuDescHandle;
+	{// ray output view for write(UAV)
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		m_rayOutputViewWrite = std::make_unique<DX12View>(
+			device,
+			EViewType::EUnorderedAccessView,
+			m_rayOutput.get(),
+			dx12DescriptorHeap->Offset(SRVOffset::SRVOffsetRayOutput0).cpuDescHandle,
+			nullptr,
+			nullptr,
+			&uavDesc);
+	}
+	{// ray output view for read(SRV)
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		srvDesc.Texture2D.MipLevels = 1;
+		m_rayOutputViewRead = std::make_unique<DX12View>(
+			device,
+			EViewType::EShaderResourceView,
+			m_rayOutput.get(),
+			dx12DescriptorHeap->Offset(SRVOffset::SRVOffsetRayAccumulate0).cpuDescHandle,
+			nullptr,
+			&srvDesc);
+	}
+	m_rayOutput->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS); // m_rayOutput initial(even frame) write
 
-	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
-	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-	uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	m_rayOutputView = std::make_unique<DX12View>(
+
+	// ray output texture
+	m_rayOutput1 = std::make_unique<DX12ResourceTexture>();
+	m_rayOutput1->CreateUAVTexture(
 		device,
-		EViewType::EUnorderedAccessView,
-		m_rayOutput.get(),
-		uavCPU,
-		nullptr,
-		nullptr,
-		&uavDesc);
-	m_rayOutput->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		width,
+		height,
+		DXGI_FORMAT_R8G8B8A8_UNORM);
+
+	{// ray output view for write(UAV)
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		m_rayOutputViewWrite1 = std::make_unique<DX12View>(
+			device,
+			EViewType::EUnorderedAccessView,
+			m_rayOutput1.get(),
+			dx12DescriptorHeap->Offset(SRVOffset::SRVOffsetRayOutput1).cpuDescHandle,
+			nullptr,
+			nullptr,
+			&uavDesc);
+	}
+	{// ray output view for read(SRV)
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		srvDesc.Texture2D.MipLevels = 1;
+		m_rayOutputViewRead1 = std::make_unique<DX12View>(
+			device,
+			EViewType::EShaderResourceView,
+			m_rayOutput1.get(),
+			dx12DescriptorHeap->Offset(SRVOffset::SRVOffsetRayAccumulate1).cpuDescHandle,
+			nullptr,
+			&srvDesc);
+	}
+	m_rayOutput1->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE); // m_rayOutput1 initial(odd frame) read
 }
 
 void DX12RayTracingManager::BuildRayGeometryBuffers(
