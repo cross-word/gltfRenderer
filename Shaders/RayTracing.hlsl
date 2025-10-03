@@ -198,9 +198,9 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
     if (payload.rayDepth < MAX_RAY_DEPTH)
     {
         RayDesc shadowRay;
-        shadowRay.Origin = posW + bumpedNormal * 0.005f;
+        shadowRay.Origin = posW + bumpedNormal * 0.01f;
         shadowRay.Direction = normalize(-gLights[0].Direction);
-        shadowRay.TMin = 0.0f;
+        shadowRay.TMin = 0.01f;
         shadowRay.TMax = 1e38f;
 
         ShadowPayload shadowPayload;
