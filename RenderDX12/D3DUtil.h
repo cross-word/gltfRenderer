@@ -276,7 +276,7 @@ inline UINT SizeToU32(size_t n)
     return static_cast<UINT>(n);
 }
 
-inline UINT AlignUp(UINT v, UINT a) { return (v + (a - 1)) & ~(a - 1); }
+inline UINT64 AlignUp(UINT64 v, UINT64 a) { return (v + (a - 1)) & ~(a - 1); }
 
 namespace SRVOffset
 {

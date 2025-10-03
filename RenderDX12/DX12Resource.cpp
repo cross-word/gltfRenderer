@@ -24,18 +24,23 @@ void DX12Resource::TransitionState(DX12CommandList* dx12CommandList, D3D12_RESOU
 	return;
 }
 
-void DX12ResourceBuffer::CreateConstantBuffer(ID3D12Device* device, uint32_t elementByteSize)
+void DX12ResourceBuffer::CreateResource(
+	ID3D12Device* device,
+	UINT64 byteSize,
+	D3D12_HEAP_TYPE heapType,
+	D3D12_RESOURCE_FLAGS flags,
+	D3D12_RESOURCE_STATES initState)
 {
-	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
-	CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(elementByteSize);
+	CD3DX12_HEAP_PROPERTIES heapProps(heapType);
+	auto desc = CD3DX12_RESOURCE_DESC::Buffer(byteSize, flags);
 	ThrowIfFailed(device->CreateCommittedResource(
 		&heapProps,
 		D3D12_HEAP_FLAG_NONE,
-		&bufferDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ,
+		&desc,
+		initState,
 		nullptr,
 		IID_PPV_ARGS(&m_resource)));
-	m_currentState = D3D12_RESOURCE_STATE_GENERIC_READ;
+	m_currentState = initState;
 }
 
 void DX12ResourceBuffer::CreateVertexBuffer(ID3D12Device* device, std::span<const Vertex> vertices, DX12CommandList* dx12CommandList)
@@ -120,7 +125,7 @@ void DX12ResourceBuffer::CopyAndUploadResource(ID3D12Resource* uploadBuffer, con
 	uploadBuffer->Unmap(0, nullptr);
 }
 
-void DX12ResourceBuffer::CreateUploadBuffer(ID3D12Device* device, UINT byteSize)
+void DX12ResourceBuffer::CreateUploadBuffer(ID3D12Device* device, UINT64 byteSize)
 {
 	CD3DX12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 	CD3DX12_RESOURCE_DESC descBuffer = CD3DX12_RESOURCE_DESC::Buffer(byteSize);
@@ -141,29 +146,11 @@ void DX12ResourceBuffer::CreateUploadBuffer(ID3D12Device* device, UINT byteSize)
 		IID_PPV_ARGS(&m_uploadBuffer)));
 }
 
-void DX12ResourceBuffer::CreateResource(
-	ID3D12Device* device,
-	UINT byteSize,
-	D3D12_RESOURCE_FLAGS flags,
-	D3D12_RESOURCE_STATES initState)
-{
-	CD3DX12_HEAP_PROPERTIES hp(D3D12_HEAP_TYPE_DEFAULT);
-	auto desc = CD3DX12_RESOURCE_DESC::Buffer(byteSize, flags);
-	ThrowIfFailed(device->CreateCommittedResource(
-		&hp,
-		D3D12_HEAP_FLAG_NONE,
-		&desc,
-		initState,
-		nullptr,
-		IID_PPV_ARGS(&m_resource)));
-	m_currentState = initState;
-}
-
 void DX12ResourceBuffer::CreateResourceAndUploadBuffer(
 	ID3D12Device* device,
 	DX12CommandList* dx12CommandList,
 	const void* srcData,
-	UINT byteSize,
+	UINT64 byteSize,
 	D3D12_RESOURCE_FLAGS flags)
 {
 	CD3DX12_HEAP_PROPERTIES hp(D3D12_HEAP_TYPE_DEFAULT);
@@ -344,9 +331,7 @@ void DX12ResourceTexture::CreateTexture(
 	dx12CommandList->RecordResourceStateTransition();
 }
 
-void DX12ResourceTexture::CreateMaterialorObjectResource(
-	ID3D12Device* device,
-	UINT byteSize)
+void DX12ResourceTexture::CreateMaterialorObjectResource(ID3D12Device* device, UINT64 byteSize)
 {
 	CD3DX12_HEAP_PROPERTIES defaultHeap(D3D12_HEAP_TYPE_DEFAULT);
 
@@ -371,7 +356,7 @@ void DX12ResourceTexture::CreateMaterialorObjectResource(
 	m_currentState = D3D12_RESOURCE_STATE_COMMON;
 }
 
-void DX12ResourceTexture::CreateUploadBuffer(ID3D12Device* device, UINT byteSize)
+void DX12ResourceTexture::CreateUploadBuffer(ID3D12Device* device, UINT64 byteSize)
 {
 	CD3DX12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 	CD3DX12_RESOURCE_DESC descBuffer = CD3DX12_RESOURCE_DESC::Buffer(byteSize);

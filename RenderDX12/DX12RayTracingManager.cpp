@@ -29,8 +29,6 @@ void DX12RayTracingManager::InitBLAS(ID3D12Device5* device, DX12CommandList* dx1
 		indexBuffer->TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);// need NON_PIXEL_SHADER_RESOURCE state for BuildRaytracingAccelerationStructure()
 		dx12CommandList->RecordResourceStateTransition();
 
-		const UINT64 vbSize = vertexBuffer->GetResource()->GetDesc().Width;
-		const UINT64 ibSize = indexBuffer->GetResource()->GetDesc().Width;
 		const UINT vtxCount = geometry->GetVertexCount();
 		const UINT idxCount = geometry->GetIndexCount();
 
@@ -59,12 +57,18 @@ void DX12RayTracingManager::InitBLAS(ID3D12Device5* device, DX12CommandList* dx1
 		info.ResultDataMaxSizeInBytes = AlignUp(info.ResultDataMaxSizeInBytes, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT);
 
 		m_BLAS[i] = std::make_unique<DX12ResourceBuffer>();
-		m_BLAS[i]->CreateResource(device, info.ResultDataMaxSizeInBytes,
+		m_BLAS[i]->CreateResource(
+			device,
+			info.ResultDataMaxSizeInBytes,
+			D3D12_HEAP_TYPE_DEFAULT,
 			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
 		m_BLASScratch[i] = std::make_unique<DX12ResourceBuffer>();
-		m_BLASScratch[i]->CreateResource(device, info.ScratchDataSizeInBytes,
+		m_BLASScratch[i]->CreateResource(
+			device, 
+			info.ScratchDataSizeInBytes,
+			D3D12_HEAP_TYPE_DEFAULT,
 			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -84,7 +88,7 @@ void DX12RayTracingManager::InitTLAS(
 	std::vector<Render::RenderItem>& renderItem)
 {
 	const UINT instanceCount = UINT(renderItem.size());
-	const UINT instBytes = AlignUp(sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * instanceCount, D3D12_RAYTRACING_INSTANCE_DESCS_BYTE_ALIGNMENT);
+	const UINT64 instBytes = AlignUp(sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * instanceCount, D3D12_RAYTRACING_INSTANCE_DESCS_BYTE_ALIGNMENT);
 	m_instanceDesc = std::make_unique<DX12ResourceBuffer>();
 	m_instanceDesc->CreateUploadBuffer(device, instBytes);
 
@@ -128,10 +132,18 @@ void DX12RayTracingManager::InitTLAS(
 	m_TLASScratch = std::make_unique<DX12ResourceBuffer>();
 	m_TLAS = std::make_unique<DX12ResourceBuffer>();
 
-	m_TLASScratch->CreateResource(device, info.ScratchDataSizeInBytes,
-		D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	m_TLAS->CreateResource(device, info.ResultDataMaxSizeInBytes,
-		D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
+	m_TLASScratch->CreateResource(
+		device,
+		info.ScratchDataSizeInBytes,
+		D3D12_HEAP_TYPE_DEFAULT,
+		D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	m_TLAS->CreateResource(
+		device,
+		info.ResultDataMaxSizeInBytes,
+		D3D12_HEAP_TYPE_DEFAULT,
+		D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+		D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC desc{};
 	desc.Inputs = inputs;
@@ -149,10 +161,6 @@ void DX12RayTracingManager::InitRayTracingPipeline(ID3D12Device5* device, ID3D12
 	DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&compiler));
 	ComPtr<IDxcIncludeHandler> includeHandler;
 	utils->CreateDefaultIncludeHandler(&includeHandler);
-
-	ComPtr<IDxcBlobEncoding> src;
-	utils->LoadFile(EngineConfig::ShaderRayTracingPath, nullptr, &src);
-	DxcBuffer buf{ src->GetBufferPointer(), src->GetBufferSize(), DXC_CP_UTF8 };
 
 	std::vector<D3D12_DXIL_LIBRARY_DESC> libs;
 	libs.reserve(5);
@@ -243,7 +251,7 @@ void DX12RayTracingManager::InitRayTracingPipeline(ID3D12Device5* device, ID3D12
 	// state object generate
 	D3D12_STATE_OBJECT_DESC stateObjectDesc{};
 	stateObjectDesc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
-	stateObjectDesc.NumSubobjects = subs.size();
+	stateObjectDesc.NumSubobjects = SizeToU32(subs.size());
 	stateObjectDesc.pSubobjects = subs.data();
 	ThrowIfFailed(device->CreateStateObject(&stateObjectDesc, IID_PPV_ARGS(&m_RTState)));
 	ThrowIfFailed(m_RTState.As(&m_RTProps));
@@ -255,9 +263,14 @@ void DX12RayTracingManager::CreateShaderTable(ID3D12Device5* device)
 	const UINT align = D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT;
 
 	{// RayGen
-		const UINT record = AlignUp(shaderIdentifier, align);
+		const UINT64 record = AlignUp(shaderIdentifier, align);
 		m_shaderTableRayGen = std::make_unique<DX12ResourceBuffer>();
-		m_shaderTableRayGen->CreateConstantBuffer(device, record);
+		m_shaderTableRayGen->CreateResource(
+			device,
+			record,
+			D3D12_HEAP_TYPE_UPLOAD,
+			D3D12_RESOURCE_FLAG_NONE,
+			D3D12_RESOURCE_STATE_GENERIC_READ);
 		uint8_t* mapped = nullptr;
 		CD3DX12_RANGE readRange(0, 0);
 		ThrowIfFailed(m_shaderTableRayGen->GetResource()->Map(0, &readRange, reinterpret_cast<void**>(&mapped)));
@@ -267,10 +280,15 @@ void DX12RayTracingManager::CreateShaderTable(ID3D12Device5* device)
 	}
 
 	{// Miss : Miss, ShadowMiss
-		const UINT stride = AlignUp(shaderIdentifier, align);
-		const UINT totalRecord = stride * 2;
+		const UINT64 stride = AlignUp(shaderIdentifier, align);
+		const UINT64 totalRecord = stride * 2;
 		m_shaderTableMiss = std::make_unique<DX12ResourceBuffer>();
-		m_shaderTableMiss->CreateConstantBuffer(device, totalRecord);
+		m_shaderTableMiss->CreateResource(
+			device,
+			totalRecord,
+			D3D12_HEAP_TYPE_UPLOAD,
+			D3D12_RESOURCE_FLAG_NONE,
+			D3D12_RESOURCE_STATE_GENERIC_READ);
 		uint8_t* mapped = nullptr;
 		CD3DX12_RANGE readRange(0, 0);
 		ThrowIfFailed(m_shaderTableMiss->GetResource()->Map(0, &readRange, reinterpret_cast<void**>(&mapped)));
@@ -281,10 +299,15 @@ void DX12RayTracingManager::CreateShaderTable(ID3D12Device5* device)
 	}
 
 	{// Hit : HitGroup, ShadowHitGroup
-		const UINT stride = AlignUp(shaderIdentifier, align);
-		const UINT totalRecord = stride * 2;
+		const UINT64 stride = AlignUp(shaderIdentifier, align);
+		const UINT64 totalRecord = stride * 2;
 		m_shaderTableHit = std::make_unique<DX12ResourceBuffer>();
-		m_shaderTableHit->CreateConstantBuffer(device, totalRecord);
+		m_shaderTableHit->CreateResource(
+			device,
+			totalRecord,
+			D3D12_HEAP_TYPE_UPLOAD,
+			D3D12_RESOURCE_FLAG_NONE,
+			D3D12_RESOURCE_STATE_GENERIC_READ);
 		uint8_t* mapped = nullptr;
 		CD3DX12_RANGE readRange(0, 0);
 		ThrowIfFailed(m_shaderTableHit->GetResource()->Map(0, &readRange, reinterpret_cast<void**>(&mapped)));
@@ -466,7 +489,7 @@ void DX12RayTracingManager::WriteSceneBufferSRV(ID3D12Device5* device, DX12Descr
 	// geometry
 	{
 		const UINT stride = 16;
-		const UINT numElem = m_geoTableBuffer->GetResource()->GetDesc().Width / stride;
+		const UINT numElem = (UINT)m_geoTableBuffer->GetResource()->GetDesc().Width / stride;
 		auto cpuHandle = dx12DescriptorHeap->Offset(SRVOffset::SRVOffsetRayGeometry).cpuDescHandle;
 		D3D12_SHADER_RESOURCE_VIEW_DESC desc = BuildDesc(DXGI_FORMAT_UNKNOWN, 0, numElem, stride);
 		m_geoTableView = std::make_unique<DX12View>(
@@ -479,7 +502,7 @@ void DX12RayTracingManager::WriteSceneBufferSRV(ID3D12Device5* device, DX12Descr
 	}
 	// index
 	{
-		const UINT numElem = m_globalIndexBuffer->GetResource()->GetDesc().Width / 4;
+		const UINT numElem = (UINT)m_globalIndexBuffer->GetResource()->GetDesc().Width / 4;
 		auto cpuHandle = dx12DescriptorHeap->Offset(SRVOffset::SRVOffsetRayIndex).cpuDescHandle;
 		D3D12_SHADER_RESOURCE_VIEW_DESC desc = BuildDesc(DXGI_FORMAT_R32_UINT, 0, numElem, 0);
 		m_globalIndexView = std::make_unique<DX12View>(
@@ -492,7 +515,7 @@ void DX12RayTracingManager::WriteSceneBufferSRV(ID3D12Device5* device, DX12Descr
 	}
 	// positino
 	{
-		const UINT numElem = m_globalPositionBuffer->GetResource()->GetDesc().Width / 4;
+		const UINT numElem = (UINT)m_globalPositionBuffer->GetResource()->GetDesc().Width / 4;
 		auto cpuHandle = dx12DescriptorHeap->Offset(SRVOffset::SRVOffsetRayPosition).cpuDescHandle;
 		D3D12_SHADER_RESOURCE_VIEW_DESC desc = BuildDesc(DXGI_FORMAT_R32_UINT, 0, numElem, 0);
 		m_globalPositionView = std::make_unique<DX12View>(
@@ -505,7 +528,7 @@ void DX12RayTracingManager::WriteSceneBufferSRV(ID3D12Device5* device, DX12Descr
 	}
 	// normal
 	{
-		const UINT numElem = m_globalNormalBuffer->GetResource()->GetDesc().Width / 4;
+		const UINT numElem = (UINT)m_globalNormalBuffer->GetResource()->GetDesc().Width / 4;
 		auto cpuHandle = dx12DescriptorHeap->Offset(SRVOffset::SRVOffsetRayNormal).cpuDescHandle;
 		D3D12_SHADER_RESOURCE_VIEW_DESC desc = BuildDesc(DXGI_FORMAT_R32_UINT, 0, numElem, 0);
 		m_globalNormalView = std::make_unique<DX12View>(
@@ -518,7 +541,7 @@ void DX12RayTracingManager::WriteSceneBufferSRV(ID3D12Device5* device, DX12Descr
 	}
 	// tex coord
 	{
-		const UINT numElem = m_globalTexcoordBuffer->GetResource()->GetDesc().Width / 4;
+		const UINT numElem = (UINT)m_globalTexcoordBuffer->GetResource()->GetDesc().Width / 4;
 		auto cpuHandle = dx12DescriptorHeap->Offset(SRVOffset::SRVOffsetRayTexCoord).cpuDescHandle;
 		D3D12_SHADER_RESOURCE_VIEW_DESC desc = BuildDesc(DXGI_FORMAT_R32_UINT, 0, numElem, 0);
 		m_globalTexcoordView = std::make_unique<DX12View>(
@@ -531,7 +554,7 @@ void DX12RayTracingManager::WriteSceneBufferSRV(ID3D12Device5* device, DX12Descr
 	}
 	// tangent
 	{
-		const UINT numElem = m_globalTangentBuffer->GetResource()->GetDesc().Width / 4;
+		const UINT numElem = (UINT)m_globalTangentBuffer->GetResource()->GetDesc().Width / 4;
 		auto cpuHandle = dx12DescriptorHeap->Offset(SRVOffset::SRVOffsetRayTangent).cpuDescHandle;
 		D3D12_SHADER_RESOURCE_VIEW_DESC desc = BuildDesc(DXGI_FORMAT_R32_UINT, 0, numElem, 0);
 		m_globalTangentView = std::make_unique<DX12View>(

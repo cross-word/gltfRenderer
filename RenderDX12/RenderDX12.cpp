@@ -73,10 +73,9 @@ RenderDX12::~RenderDX12()
 void RenderDX12::InitializeDX12(HWND hWnd, const std::wstring& sceneFilePath)
 {
 	assert(hWnd);
-	UINT dxgiFactoryFlags = 0;
-
 	//enable debug layer
 #if defined(DEBUG) || defined(_DEBUG)
+	UINT dxgiFactoryFlags = 0;
 	{
 		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&m_debugController))))
 		{
@@ -405,9 +404,11 @@ void RenderDX12::RecordAndSubmit_Single()
 		m_DX12FrameBuffer.EndMainPass(m_DX12Device.GetDX12CommandList(), currBackBufferIndex, m_DX12Device.GetDX12SwapChain()->GetRenderTargetFormat(), m_DX12Device.GetDX12ShadowManager());
 #if defined(_DEBUG)
 		PIXEndEvent(m_DX12Device.GetDX12CommandList()->GetCommandList());
+#endif
 	}
 	//////////////////////////////////imgui drawing
 	// imgui render block
+#if defined(_DEBUG)
 	PIXBeginEvent(m_DX12Device.GetDX12CommandList()->GetCommandList(), PIX_COLOR(255, 0, 255), L"ImGui"); //pix marking ~ imgui rendering
 #endif
 	ImGui_ImplDX12_NewFrame();
