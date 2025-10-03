@@ -61,6 +61,7 @@ public:
     void ShutDown();
     D3DCamera* GetD3DCamera() const noexcept { return m_DX12Device.GetD3DCamera(); }
     void ToggleRayTracing();
+    void ToggleMultiThreading();
 private:
     ComPtr<ID3D12Debug3> m_debugController;
     DX12FrameBuffer m_DX12FrameBuffer;
@@ -102,6 +103,7 @@ private:
     void RecordAndSubmit_Multi(); // for multi-thread
 
     bool m_useRayTracing = true;  // toggle ray-tracing, rasterization
+    bool m_useMultiThread = EngineConfig::UseMultiThread; // tobble multithread/singlethread
 };
 static UINT sFrameId = 0;
 

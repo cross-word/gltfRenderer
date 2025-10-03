@@ -237,7 +237,7 @@ void RenderDX12::AllocateWorkerDrawingCommand(uint32_t i)
 
 void RenderDX12::Draw()
 {
-	if (EngineConfig::UseMultiThread && workerCount > 0)
+	if (m_useMultiThread && workerCount > 0)
 		RecordAndSubmit_Multi();
 	else
 		RecordAndSubmit_Single();
@@ -670,7 +670,7 @@ void RenderDX12::ShutDown()
 
 void RenderDX12::ToggleRayTracing()
 {
-	if (!m_DX12Device.IsDXRAvailable())
+	if (!m_DX12Device.IsDXRAvailable()) //device does not support RT
 	{
 		m_useRayTracing = false;
 #if defined(_DEBUG)
@@ -682,5 +682,21 @@ void RenderDX12::ToggleRayTracing()
 	m_useRayTracing = !m_useRayTracing;
 #if defined(_DEBUG)
 	OutputDebugStringW(m_useRayTracing ? L"Ray tracing enabled.\n" : L"Ray tracing disabled.\n");
+#endif
+}
+
+void RenderDX12::ToggleMultiThreading()
+{
+	if (!m_useMultiThread && workerCount == 0)
+	{
+#if defined(_DEBUG)
+		OutputDebugStringW(L"Multi-threaded rendering is unavailable: no worker threads configured.\n");
+#endif
+		return;
+	}
+
+	m_useMultiThread = !m_useMultiThread;
+#if defined(_DEBUG)
+	OutputDebugStringW(m_useMultiThread ? L"Multi-threaded rendering enabled.\n" : L"Multi-threaded rendering disabled.\n");
 #endif
 }
