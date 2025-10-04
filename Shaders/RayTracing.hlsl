@@ -216,8 +216,12 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
         shadow = shadowPayload.visibility;
     }
 
-    Material mat = { diffuseAlbedo, fresnelR0, shininess };
-    float4 directLight = ComputeLighting(gLights, mat, posW, bumpedNormal, toEye, float3(shadow, shadow, shadow));
+    float alpha = diffuseAlbedo.a;
+    float3 baseColor = diffuseAlbedo.rgb;
+    fresnelR0 = lerp(fresnelR0, baseColor, metal);
+    PbrMaterial pbrMat = { baseColor, fresnelR0, max(roughness, 0.045f), metal };
+
+    float3 directLight = ComputeLighting(gLights, pbrMat, posW, bumpedNormal, toEye, shadow);
 
     // ambient F0 approximation
     float3 hemi = EvaluateEnvironment(bumpedNormal);
@@ -228,18 +232,18 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
     float3 ambientRGB = ambientOcclusion * kD * hemi;
     const float ambientShadowStrength = 0.7;
     ambientRGB *= lerp(1.0, shadow, ambientShadowStrength);
-    float4 ambient = float4(ambientRGB, 0.0);
+    float3 ambient = ambientRGB;
 
     // phong shading result) ambient + diffuse + specular
-    float4 litColor = ambient + directLight;
+    float3 litColor = ambient + directLight;
 
     // add emissive result
     float3 emissive = matData.gEmissiveFactor;
     if (matData.gEmissiveIdx < NUM_TEXTURE)
         emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].SampleLevel(gsamLinearWrap, tex, 0).rgb;
-    litColor.rgb += emissive * matData.gEmissiveStrength;
+    litColor += emissive * matData.gEmissiveStrength;
 
-    litColor.rgb = pow(saturate(litColor.rgb), 1.0 / 2.2);// gammma cor
+    litColor = pow(saturate(litColor.rgb), 1.0 / 2.2);// gammma cor
 
     outAlpha = diffuseAlbedo.a;
     return litColor.rgb;

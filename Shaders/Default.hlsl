@@ -90,20 +90,18 @@ float4 PS(VertexOut pin) : SV_Target
     if (matData.gORMIdx >= NUM_TEXTURE) orm = float3(1.0f, 1.0f, 0.0f);
     float ambientOcclusion = lerp(1.0, orm.r, saturate(matData.gOcclusionStrength));
     roughness = saturate(roughness * orm.g);
-    roughness = clamp(roughness, 0.45, 0.90);
     float metal = saturate(matData.gMetallic * orm.b);
 
+    float alpha = diffuseAlbedo.a;
+    float3 baseColor = diffuseAlbedo.rgb;
+    fresnelR0 = lerp(fresnelR0, baseColor, metal);
+
+    PbrMaterial pbrMat = { baseColor, fresnelR0, max(roughness, 0.045f), metal };
     // Only the first light casts a shadow.
-    float  s = ShadowFactor(pin.ShadowPosH, bumpedNormalW);
-    float3 shadowFactor = float3(s, s, s);
+    float shadow = ShadowFactor(pin.ShadowPosH, bumpedNormalW);
 
-    const float shininess = (1.0 - roughness) * (1.0 - roughness);
-    fresnelR0 = lerp(fresnelR0, diffuseAlbedo.rgb, metal);
-    diffuseAlbedo.rgb *= (1.0 - metal);
-
-    Material mat = { diffuseAlbedo, fresnelR0, shininess };
-    float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
-        bumpedNormalW, toEyeW, shadowFactor);
+    float3 directLight = ComputeLighting(gLights, pbrMat, pin.PosW,
+        bumpedNormalW, toEyeW, shadow);
 
     // sky hemisphere
     float3 hemiTop = float3(0.55, 0.62, 0.80); // skyblue scaling
@@ -111,27 +109,31 @@ float4 PS(VertexOut pin) : SV_Target
     float up = saturate(dot(bumpedNormalW, float3(0, 1, 0)));
     float3 hemi = lerp(hemiBot, hemiTop, up);
 
-    // ambient F0 approximation
-    float3 kS = lerp(float3(0.04, 0.04, 0.04), matData.DiffuseAlbedo.rgb, metal);
-    float3 kD = (1.0 - kS) * (1.0 - metal);
+    float3 irradiance = gAmbientLight.rgb * hemi;
+    float3 V = toEyeW;
+    float NdotV = saturate(dot(bumpedNormalW, V));
+    float3 F_ibl = FresnelSchlickRoughness(NdotV, pbrMat.F0, pbrMat.Roughness);
+    float3 kS = F_ibl;
+    float3 kD = (1.0 - kS) * (1.0 - pbrMat.Metallic);
 
-    // final ambient
-    float3 ambientRGB = ambientOcclusion * (kD * gAmbientLight * hemi);
-    const float ambientShadowStrength = 0.7;
-    ambientRGB *= lerp(1.0, s, ambientShadowStrength);
-    float4 ambient = float4(ambientRGB, 0.0);
+    float3 diffuseIBL = irradiance * pbrMat.BaseColor / PI;
+    float3 reflectDir = reflect(-V, bumpedNormalW);
+    float skyFactor = saturate(reflectDir.y * 0.5f + 0.5f);
+    float3 specEnv = gAmbientLight.rgb * lerp(hemiBot, hemiTop, skyFactor);
+    float specStrength = lerp(1.0f, 0.1f, pbrMat.Roughness);
+    float3 specularIBL = specEnv * (F_ibl * specStrength);
 
-    // phong shading result) ambient + diffuse + specular
-    float4 litColor = ambient + directLight;
+    float ambientShadowStrength = 0.7f;
+    float visibility = lerp(1.0f, shadow, ambientShadowStrength);
+    float3 ambient = ambientOcclusion * visibility * (kD * diffuseIBL + specularIBL);
 
     // add emissive result
     float3 emissive = matData.gEmissiveFactor;
     if (matData.gEmissiveIdx < NUM_TEXTURE)
         emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].Sample(gsamLinearWrap, pin.TexC).rgb;
-    litColor.rgb += emissive * matData.gEmissiveStrength;
+    float3 color = directLight + ambient + emissive * matData.gEmissiveStrength;
+    color = color / (color + 1.0f);
+    color = pow(saturate(color), 1.0f / 2.2f);
 
-    //litColor.rgb = pow(saturate(litColor.rgb), 1.0 / 2.2);// gammma cor
-
-    litColor.a = diffuseAlbedo.a;
-    return litColor;
+    return float4(color, alpha);
 }
