@@ -210,6 +210,7 @@ void DX12RayTracingManager::InitRayTracingPipeline(ID3D12Device5* device, ID3D12
 	exps.push_back({ L"RayGen" , nullptr, D3D12_EXPORT_FLAG_NONE });
 	exps.push_back({ L"Miss" , nullptr, D3D12_EXPORT_FLAG_NONE });
 	exps.push_back({ L"ClosestHit" , nullptr, D3D12_EXPORT_FLAG_NONE });
+	exps.push_back({ L"AlphaAnyHit"   , nullptr, D3D12_EXPORT_FLAG_NONE });
 	exps.push_back({ L"ShadowAnyHit" , nullptr, D3D12_EXPORT_FLAG_NONE });
 	exps.push_back({ L"ShadowMiss" , nullptr, D3D12_EXPORT_FLAG_NONE });
 
@@ -223,7 +224,8 @@ void DX12RayTracingManager::InitRayTracingPipeline(ID3D12Device5* device, ID3D12
 
 	D3D12_HIT_GROUP_DESC hg0{};
 	hg0.HitGroupExport = L"HitGroup";
-	hg0.ClosestHitShaderImport = L"ClosestHit";
+	hg0.ClosestHitShaderImport = L"ClosestHit"; 
+	hg0.AnyHitShaderImport = L"AlphaAnyHit";
 	hg0.Type = D3D12_HIT_GROUP_TYPE_TRIANGLES;
 
 	D3D12_HIT_GROUP_DESC hg1{};

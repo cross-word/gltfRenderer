@@ -171,12 +171,6 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
     diffuseAlbedo *= gTextureMapsSRGB[matData.DiffuseMapIndex].SampleLevel(gsamAnisotropicWrap, tex, 0);
     if (matData.DiffuseMapIndex >= NUM_TEXTURE) diffuseAlbedo = matData.DiffuseAlbedo;
 
-    if (diffuseAlbedo.a < 0.1f)
-    {
-        outAlpha = 0.0f;
-        return float3(0.0f, 0.0f, 0.0f);
-    }
-
     // Interpolating normal can unnormalize it, so renormalize it.
     float3 bumpedNormal = normalW;
     float3 normalMapSample = gTextureMapsLinear[matData.NormalMapIndex].SampleLevel(gsamAnisotropicWrap, tex, 0).rgb;
@@ -245,7 +239,7 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
         emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].SampleLevel(gsamLinearWrap, tex, 0).rgb;
     litColor.rgb += emissive * matData.gEmissiveStrength;
 
-    //litColor.rgb = pow(saturate(litColor.rgb), 1.0 / 2.2);// gammma cor
+    litColor.rgb = pow(saturate(litColor.rgb), 1.0 / 2.2);// gammma cor
 
     outAlpha = diffuseAlbedo.a;
     return litColor.rgb;
@@ -329,4 +323,17 @@ void ShadowAnyHit(inout ShadowPayload payload, Attributes attr)
 void ShadowMiss(inout ShadowPayload payload)
 {
     payload.visibility = 1.0f;
+}
+
+[shader("anyhit")]
+void AlphaAnyHit(inout RadiancePayload payload, Attributes attr)
+{
+    return;
+
+    //TODO: NEED TO IMPLEMENT ALPHA BLENDING
+    float a = SampleAlpha(PrimitiveIndex(), attr.barycentrics);
+    if (a < TEMPORAL_ALPHA) {
+        IgnoreHit();
+        return;
+    }
 }
