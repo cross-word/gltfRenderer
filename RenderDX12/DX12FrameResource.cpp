@@ -40,7 +40,12 @@ void DX12FrameResource::CreateSRV(ID3D12Device* device, DX12DescriptorHeap* dx12
 
 	//PassConstantBuffer
 	m_DX12PassConstantBuffer = std::make_unique<DX12ResourceBuffer>();
-	m_DX12PassConstantBuffer->CreateConstantBuffer(device, byteSize);
+	m_DX12PassConstantBuffer->CreateResource(
+		device,
+		byteSize,
+		D3D12_HEAP_TYPE_UPLOAD,
+		D3D12_RESOURCE_FLAG_NONE,
+		D3D12_RESOURCE_STATE_GENERIC_READ);
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = m_DX12PassConstantBuffer->GetResource()->GetGPUVirtualAddress();
 
 	D3D12_CONSTANT_BUFFER_VIEW_DESC passCBVDesc;

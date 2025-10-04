@@ -39,15 +39,30 @@ protected:
 	D3D12_RESOURCE_STATES  m_currentState = D3D12_RESOURCE_STATE_COMMON; //default state common
 };
 
+/*
+// has two ID3D12Resource: resource/upload buffer.
+*/
 class DX12ResourceBuffer : public DX12Resource
 {
 public:
 	void ResetUploadBuffer() noexcept { m_uploadBuffer.Reset(); m_uploadBufferCurrentState = D3D12_RESOURCE_STATE_COMMON; }
-	void CreateConstantBuffer(ID3D12Device* device, uint32_t elementByteSize);
     void CreateVertexBuffer(ID3D12Device* device, std::span<const Vertex> vertices, DX12CommandList* dx12CommandList);
 	void CreateIndexBuffer(ID3D12Device* device, std::span<const uint32_t> indices, DX12CommandList* dx12CommandList);
 	void CopyAndUploadResource(ID3D12Resource* uploadBuffer, const void* sourceAddress, size_t dataSize, CD3DX12_RANGE* readRange = nullptr);
-
+	void CreateUploadBuffer(ID3D12Device* device, UINT64 byteSize);
+	void CreateResource(
+		ID3D12Device* device,
+		UINT64 byteSize,
+		D3D12_HEAP_TYPE heapType = D3D12_HEAP_TYPE_DEFAULT,
+		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
+		D3D12_RESOURCE_STATES initState = D3D12_RESOURCE_STATE_COMMON);
+	void CreateResourceAndUploadBuffer(
+		ID3D12Device* device,
+		DX12CommandList* dx12CommandList,
+		const void* srcData,
+		UINT64 byteSize,
+		D3D12_RESOURCE_FLAGS flags);
+	ID3D12Resource* GetUploadBuffer() const noexcept { return m_uploadBuffer.Get(); }
 private:
 	ComPtr<ID3D12Resource> m_uploadBuffer;
 	D3D12_RESOURCE_STATES  m_uploadBufferCurrentState = D3D12_RESOURCE_STATE_COMMON; //default state common
@@ -59,7 +74,7 @@ private:
 
 public:
 	ID3D12Resource* GetUploadBuffer() const noexcept { return m_uploadBuffer.Get(); }
-	void CreateUploadBuffer(ID3D12Device* device, UINT byteSize);
+	void CreateUploadBuffer(ID3D12Device* device, UINT64 byteSize);
 	void ResetUploadBuffer() noexcept { m_uploadBuffer.Reset(); m_uploadBufferCurrentState = D3D12_RESOURCE_STATE_COMMON; }
 	void CopyAndUploadResource(ID3D12Resource* uploadBuffer, const void* sourceAddress, size_t dataSize, CD3DX12_RANGE* readRange = nullptr);
 	void CreateDepthStencil(
@@ -84,7 +99,7 @@ public:
 
 	void CreateMaterialorObjectResource(
 		ID3D12Device* device,
-		UINT byteSize);
+		UINT64 byteSize);
 
 	void CreateShadowResource(
 		ID3D12Device* device,
@@ -92,6 +107,12 @@ public:
 		uint32_t shadowHeight,
 		DXGI_FORMAT shadowResourceFormat,
 		DXGI_FORMAT shadowDSVFormat);
+
+	void CreateUAVTexture(
+		ID3D12Device* device,
+		uint32_t width,
+		uint32_t height,
+		DXGI_FORMAT format);
 
 private:
 	ComPtr<ID3D12Resource> m_uploadBuffer;

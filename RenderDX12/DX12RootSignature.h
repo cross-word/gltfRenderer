@@ -17,11 +17,15 @@ public:
 	DX12RootSignature();
 	~DX12RootSignature();
 	void Initialize(ID3D12Device* device);
-	inline ID3D12RootSignature* GetRootSignature() const noexcept { return m_rootSignature.Get(); }
+	inline ID3D12RootSignature* GetRasterizeRootSignature() const noexcept { return m_rasterizeRootSignature.Get(); }
+	inline ID3D12RootSignature* GetRayTracingRootSignature() const noexcept { return m_rayTracingRootSignature.Get(); }
+
+private:
+	void CreateRasterizeRootSignature(ID3D12Device* device);
+	void CreateRayTracingRootSignature(ID3D12Device* device);
 
 private:
 	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> GetStaticSamplers();
-
-private:
-	ComPtr<ID3D12RootSignature> m_rootSignature;
+	ComPtr<ID3D12RootSignature> m_rasterizeRootSignature;
+	ComPtr<ID3D12RootSignature> m_rayTracingRootSignature;
 };

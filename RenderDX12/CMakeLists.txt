@@ -2,6 +2,7 @@ find_package(directxtex CONFIG REQUIRED)          # Microsoft::DirectXTex
 find_package(directxtk12 CONFIG QUIET)            # Microsoft::DirectXTK12
 find_package(winpixevent CONFIG QUIET)     # Microsoft::WinPixEventRuntime
 find_package(imgui CONFIG REQUIRED)               # imgui::imgui
+find_package(directx-dxc CONFIG REQUIRED)
 
 set(IMGUI_BACKENDS_DIR ${CMAKE_SOURCE_DIR}/external/imgui_backends)
 
@@ -40,6 +41,7 @@ add_library(RenderDX12 SHARED
     DX12SwapChain.cpp
     DX12TextureManager.cpp
     DX12View.cpp
+    DX12RayTracingManager.cpp
     RenderDX12.cpp
     stdafx.cpp
     ${IMGUI_BACKENDS_DIR}/imgui_impl_win32.cpp
@@ -65,7 +67,7 @@ target_link_libraries(RenderDX12
     Microsoft::DirectXTex
     $<$<TARGET_EXISTS:Microsoft::DirectXTK12>:Microsoft::DirectXTK12>
     $<$<TARGET_EXISTS:Microsoft::WinPixEventRuntime>:Microsoft::WinPixEventRuntime>
-    d3d12 dxgi d3dcompiler dxguid user32 gdi32 shell32 imm32 shcore
+    d3d12 dxgi d3dcompiler dxguid user32 gdi32 shell32 imm32 shcore dxcompiler
 )
 
 if(MSVC)

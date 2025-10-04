@@ -2,26 +2,6 @@
 // Default.hlsl by Frank Luna (C) 2015 All Rights Reserved.
 //***************************************************************************************
 
-// Defaults for number of lights.
-#ifndef NUM_DIR_LIGHTS
-#define NUM_DIR_LIGHTS 1
-#endif
-
-#ifndef NUM_POINT_LIGHTS
-#define NUM_POINT_LIGHTS 0
-#endif
-
-#ifndef NUM_SPOT_LIGHTS
-#define NUM_SPOT_LIGHTS 24
-#endif
-
-#ifndef NUM_TEXTURE
-#define NUM_TEXTURE 72
-#endif
-
-#ifndef NUM_LIGHTS
-#define NUM_LIGHTS 25
-#endif
 // Include common HLSL code.
 #include "Common.hlsl"
 

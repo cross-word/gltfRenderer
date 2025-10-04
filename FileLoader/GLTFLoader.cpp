@@ -216,7 +216,8 @@ inline int LightTypeToInt(const std::string& t)
 void CollectGLTFLights(
     const tinygltf::Model& model,
     const std::vector<XMFLOAT4X4>& nodeWorldsLH,
-    std::vector<Light>& out)
+    std::vector<Light>& out,
+    SceneData& sceneData)
 {
     out.clear();
 
@@ -251,16 +252,28 @@ void CollectGLTFLights(
         g.Type = LightTypeToInt(L.type);
         g.Range = (L.range > 0.0) ? (float)L.range : -1.0f;
 
-        if (g.Type == LIGHT_TYPE_SPOT)
+        switch (g.Type)
         {
-            g.InnerCos = cosf((float)L.spot.innerConeAngle);
-            g.OuterCos = cosf((float)L.spot.outerConeAngle);
+            case(LIGHT_TYPE_DIRECTIONAL):
+            {
+                g.InnerCos = 0.0f; g.OuterCos = -1.0f;
+                sceneData.numDirectionalLight++;
+                break;
+            }
+            case(LIGHT_TYPE_POINT):
+            {
+                g.InnerCos = 0.0f; g.OuterCos = -1.0f;
+                sceneData.numPointLight++;
+                break;
+            }
+            case(LIGHT_TYPE_SPOT):
+            {
+                g.InnerCos = cosf((float)L.spot.innerConeAngle);
+                g.OuterCos = cosf((float)L.spot.outerConeAngle);
+                sceneData.numSpotLight++;
+                break;
+            }
         }
-        else
-        {
-            g.InnerCos = 0.0f; g.OuterCos = -1.0f;
-        }
-
         XMMATRIX W = XMLoadFloat4x4(&nodeWorldsLH[ni]);
         XMVECTOR dir = NodeWorldForward(W);
         XMVECTOR pos = NodeWorldPosition(W);
@@ -449,7 +462,24 @@ SceneData LoadGLTFScene(const std::wstring& filename)
     std::vector<XMFLOAT4X4> nodeWorldsLH;
     BuildNodeWorlds(model, nodeWorldsLH);
 
-    CollectGLTFLights(model, nodeWorldsLH, scene.lights);
+    CollectGLTFLights(model, nodeWorldsLH, scene.lights, scene);
+    if (scene.lights.empty())
+    {
+        Light sun{};
+        sun.Type = LIGHT_TYPE_DIRECTIONAL;
+        sun.Color = { 1.0f, 1.0f, 1.0f };
+        sun.Intensity = 5.5f;
+        sun.Direction = { 0.0f, -1.0f, 0.0f };
+        sun.Range = -1.0f;
+        sun.Position = { 0.0f, 0.0f, 0.0f };
+        sun.InnerCos = 0.0f;
+        sun.OuterCos = -1.0f;
+
+        scene.lights.push_back(sun);
+        scene.numDirectionalLight = 1;
+        scene.numPointLight = 0;
+        scene.numSpotLight = 0;
+    }
 
     return scene;
 }

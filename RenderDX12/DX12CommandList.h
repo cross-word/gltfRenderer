@@ -23,7 +23,7 @@ public:
 	DX12CommandList();
 	~DX12CommandList();
 	void Initialize(ID3D12Device* device, ID3D12CommandAllocator* commandAllocator, HANDLE fenceEvent);
-	inline ID3D12GraphicsCommandList* GetCommandList() const noexcept { return m_commandList.Get(); }
+	inline ID3D12GraphicsCommandList4* GetCommandList() const noexcept { return m_commandList.Get(); }
 	inline ID3D12CommandQueue* GetCommandQueue() const noexcept { return m_commandQueue.Get(); }
 	inline ID3D12Fence* GetFence() const noexcept { return m_fence.Get(); }
 	inline UINT64 GetFenceValue() const noexcept { return m_fenceValue; }
@@ -38,7 +38,7 @@ public:
 	void PushStateTransition(D3D12_RESOURCE_BARRIER newTransition) { m_resourceStateTransitionStack.emplace_back(newTransition); }
 	void RecordResourceStateTransition();
 private:
-	ComPtr<ID3D12GraphicsCommandList> m_commandList;
+	ComPtr<ID3D12GraphicsCommandList4> m_commandList;
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<ID3D12Fence> m_fence;
 

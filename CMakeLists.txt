@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
-project(MiniRenderEngine LANGUAGES CXX)
+project(gltfRenderer LANGUAGES CXX)
 
 if(NOT WIN32)
-    message(FATAL_ERROR "MiniRenderEngine currently supports Windows builds only.")
+    message(FATAL_ERROR "gltfRenderer currently supports Windows builds only.")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)

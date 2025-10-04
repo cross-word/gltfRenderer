@@ -28,11 +28,15 @@ gltf file Renderer through DX12 API
 >   >   > --(gltfRenderer repo code files...)       
 
 > 2. build
->   > run cmd. 
+>   > run cmd   
 >   > enter "scripts\build.bat"    
 >   > default build setting is Debug. if you want to build release profile, enter "scripts\build.bat release"    
 >   > solution file will place in build\     
 >   > .exe file will place in build\bin\{profile_name}\MiniEngineCore.exe     
+
+> 3. command
+>   > press "Tab" toggle multi-thread & single-thread in rasterize rendering   
+>   > press "Space" toggel ray-tracing & rasterize in single-thread rendering   
 
 # Other Scene Load
 > If you want to load other scene, parse your path useing --scene_path="your_scene_path" in cmd.     

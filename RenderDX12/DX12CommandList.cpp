@@ -100,7 +100,7 @@ void DX12CommandList::RecordResourceStateTransition()
 {
 	if (m_resourceStateTransitionStack.empty())
 	{
-		::OutputDebugStringA("There is no Stacked Resource State Transition!");
+		::OutputDebugStringA("There is no Stacked Resource State Transition!\n");
 		return;
 	}
 

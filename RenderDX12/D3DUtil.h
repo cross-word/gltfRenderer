@@ -226,7 +226,7 @@ static void BuildDirLightViewProj(
         maxPt = XMVectorMax(maxPt, p);
     }
 
-    // 5) Off-center Ortho (LH)
+    // Off-center Ortho (LH)
     XMFLOAT3 minPtF, maxPtF;
     XMStoreFloat3(&minPtF, minPt);
     XMStoreFloat3(&maxPtF, maxPt);
@@ -275,3 +275,26 @@ inline UINT SizeToU32(size_t n)
     assert(n <= (std::numeric_limits<UINT>::max)());
     return static_cast<UINT>(n);
 }
+
+inline UINT64 AlignUp(UINT64 v, UINT64 a) { return (v + (a - 1)) & ~(a - 1); }
+
+namespace SRVOffset
+{
+    const UINT SRVOffsetConstant = 0; //b0
+    const UINT SRVOffsetTextureSRGB = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount; //t0 space0
+    const UINT SRVOffsetTextureLinear = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + EngineConfig::MaxTextureCount; //t0 space2
+    const UINT SRVOffsetMaterial = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount; //t0 space1
+    const UINT SRVOffsetObjectConstant = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 1; //t1 space1
+    const UINT SRVOffsetShadowMap = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 2; //t2 space1
+    const UINT SRVOffsetRayTLAS = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 3; //t0 space4
+    const UINT SRVOffsetRayGeometry = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 4; //t4 space1
+    const UINT SRVOffsetRayOutput0 = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 5; //u0
+    const UINT SRVOffsetRayOutput1 = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 6; //u0
+    const UINT SRVOffsetRayAccumulate0 = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 7; //t1 space4
+    const UINT SRVOffsetRayAccumulate1 = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 8; //t2 space4
+    const UINT SRVOffsetRayIndex = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 9; //t0 space3
+    const UINT SRVOffsetRayPosition = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 10; //t1 space3
+    const UINT SRVOffsetRayNormal = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 11; //t2 space3
+    const UINT SRVOffsetRayTexCoord = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 12; //t3 space3
+    const UINT SRVOffsetRayTangent = EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 13; //t4 space3
+};

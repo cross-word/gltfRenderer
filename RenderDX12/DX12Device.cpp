@@ -4,6 +4,7 @@
 #include "../FileLoader/SimpleLoader.h"
 
 #include <future>
+
 DX12Device::DX12Device()
 {
 	m_fenceEvent = CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS);
@@ -119,7 +120,8 @@ void DX12Device::InitDX12SRVHeap()
 		2 * EngineConfig::MaxTextureCount
 		+ 1
 		+ 1
-		+ 1, // 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors + 1 shadow map
+		+ 1
+		+ 11, // 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors + 1 shadow map + 11 raytracing var
 		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
 		D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
 }
@@ -154,11 +156,17 @@ void DX12Device::InitShader()
 	ID3DBlob* errorBlob = nullptr;
 
 	std::string poolMax = std::to_string(EngineConfig::MaxTextureCount);
-	std::string numLight = std::to_string(m_sceneData.lights.size() + 1);
+	std::string numLight = std::to_string(m_sceneData.lights.size() + 1); //default sunlight + 1
+	std::string numDirLight = std::to_string(m_sceneData.numDirectionalLight + 1); //default sunlight + 1
+	std::string numPointLight = std::to_string(m_sceneData.numPointLight);
+	std::string numSpotLight = std::to_string(m_sceneData.numSpotLight);
 	D3D_SHADER_MACRO macros[] =
 	{
 		{ "NUM_TEXTURE", poolMax.c_str() },
 		{ "NUM_LIGHTS", numLight.c_str()},
+		{ "NUM_DIR_LIGHTS", numDirLight.c_str()},
+		{ "NUM_POINT_LIGHTS", numPointLight.c_str()},
+		{ "NUM_SPOT_LIGHTS", numSpotLight.c_str()},
 		{ nullptr, nullptr }
 	};
 
@@ -217,7 +225,7 @@ void DX12Device::CreateDX12PSO()
 	m_DX12PSO->CreateMainPassPSO(
 		GetDevice(),
 		m_inputLayout,
-		m_DX12RootSignature->GetRootSignature(),
+		m_DX12RootSignature->GetRasterizeRootSignature(),
 		m_DX12SwapChain->GetDepthStencilFormat(),
 		m_DX12SwapChain->GetRenderTargetFormat(),
 		m_vertexShader.Get(),
@@ -229,7 +237,7 @@ void DX12Device::CreateDX12PSO()
 	m_DX12PSO->CreateShadowPassPSO(
 		GetDevice(),
 		m_inputLayout,
-		m_DX12RootSignature->GetRootSignature(),
+		m_DX12RootSignature->GetRasterizeRootSignature(),
 		m_DX12ShadowManager->GetShadowDepthStencilFormat(),
 		DXGI_FORMAT_UNKNOWN,
 		m_shadowVertexShader.Get(),
@@ -316,10 +324,8 @@ void DX12Device::PrepareInitialResource()
 
 	for (size_t i = 0; i < decodedTextures.size(); ++i)
 	{
-		auto SRGBCpuHandle = m_DX12SRVHeap->Offset(
-			EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + (UINT)i).cpuDescHandle;
-		auto LinearCpuHandle = m_DX12SRVHeap->Offset(
-			EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + EngineConfig::MaxTextureCount + (UINT)i).cpuDescHandle;
+		auto SRGBCpuHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetTextureSRGB + (UINT)i).cpuDescHandle;
+		auto LinearCpuHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetTextureLinear + (UINT)i).cpuDescHandle;
 
 		auto tmpTexture = std::make_unique<DX12TextureManager>();
 		std::string texName = "tex_" + std::to_string(i);
@@ -338,8 +344,8 @@ void DX12Device::PrepareInitialResource()
 	const UINT dummyStartIndex = SizeToU32(m_sceneData.textures.size());
 	for (UINT i = dummyStartIndex; i < EngineConfig::MaxTextureCount; ++i)
 	{
-		auto cpuHandle = m_DX12SRVHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + i).cpuDescHandle;
-		auto cpuHandle2 = m_DX12SRVHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + EngineConfig::MaxTextureCount + i).cpuDescHandle;
+		auto cpuHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetTextureSRGB + i).cpuDescHandle;
+		auto cpuHandle2 = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetTextureLinear + i).cpuDescHandle;
 
 		auto tmpTexture = std::make_unique<DX12TextureManager>();
 		tmpTexture->CreateDummyTextureResource(
@@ -397,7 +403,7 @@ void DX12Device::PrepareInitialResource()
 		m_DX12CommandList->GetCommandList(),
 		materialSize * sizeof(MaterialConstants));
 
-	auto matCPUHandle = m_DX12SRVHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount).cpuDescHandle;
+	auto matCPUHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetMaterial).cpuDescHandle;
 	m_DX12MaterialConstantManager->InitializeSRV(
 		m_device.Get(),
 		&matCPUHandle,
@@ -422,12 +428,33 @@ void DX12Device::PrepareInitialResource()
 			m_sceneData.primitives[p].mesh,
 			D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		m_sceneGeometry[p] = std::move(tmpGeometry);
+
+		const auto& vtx = m_sceneData.primitives[p].mesh.vertices;
+		const auto& idx = m_sceneData.primitives[p].mesh.indices;
+		GeometryMetadataCPU meta{};
+		meta.IndexOffset = static_cast<uint32_t>(m_indices.size()); //size is same with the offset
+		meta.VertexOffset = static_cast<uint32_t>(m_positions.size()); //size is same with the offset
+		meta.MaterialIndex = static_cast<uint32_t>(max(m_sceneData.primitives[p].material, 0));
+		m_geoTable.push_back(meta);
+		m_indices.insert(m_indices.end(), idx.begin(), idx.end()); //make size same te the offset.
+		m_positions.reserve(m_positions.size() + vtx.size()); //make size same te the offset.
+		m_normals.reserve(m_normals.size() + vtx.size());
+		m_texcoords.reserve(m_texcoords.size() + vtx.size());
+		m_tangents.reserve(m_tangents.size() + vtx.size());
+		for (const auto& vv : vtx)
+		{
+			m_positions.push_back(vv.position);
+			m_normals.push_back(vv.normal);
+			m_texcoords.push_back(vv.texC);
+			XMFLOAT4 tangent = XMFLOAT4( vv.tangent.x, vv.tangent.y, vv.tangent.z, (std::isfinite(vv.tangent.w) ? vv.tangent.w : 1.0f));
+			m_tangents.push_back(tangent);
+		}
+
 	}
 
 	// build RenderItems
 	m_renderItems.clear();
 	m_renderItems.reserve(m_sceneData.instances.size());
-
 	for (auto& instance : m_sceneData.instances)
 	{
 		Render::RenderItem renderItem{};
@@ -444,16 +471,14 @@ void DX12Device::PrepareInitialResource()
 
 	m_DX12ObjectConstantManager = std::make_unique<DX12ObjectConstantManager>();
 	m_DX12ObjectConstantManager->InitialzieUploadBuffer(m_device.Get(), m_DX12CommandList->GetCommandList(), EngineConfig::NumDefaultObjectSRVSlot * sizeof(ObjectConstants));
-	auto objCPUHandle = m_DX12SRVHeap->Offset(EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount + 2 * EngineConfig::MaxTextureCount + 1).cpuDescHandle;
+	auto objCPUHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetObjectConstant).cpuDescHandle;
 	m_DX12ObjectConstantManager->InitializeSRV(m_device.Get(), &objCPUHandle, EngineConfig::NumDefaultObjectSRVSlot, sizeof(ObjectConstants));
+
+	//ray tracing prepare
+	InitDXRayTracing();
 
 	//wait for upload and reset upload buffers
 	m_DX12CommandList->SubmitAndWait();
-	for (int i = 0; i < m_DX12RenderGeometry.size(); i++)
-	{
-		m_DX12RenderGeometry[i]->GetDX12VertexBuffer()->ResetUploadBuffer();
-		m_DX12RenderGeometry[i]->GetDX12IndexBuffer()->ResetUploadBuffer();
-	}
 	m_DX12MaterialConstantManager->GetMaterialResource()->ResetUploadBuffer();
 }
 
@@ -482,13 +507,10 @@ void DX12Device::InitDX12ShadowManager()
 		2 * m_DX12SwapChain->GetSwapChainBufferCount(), // maind render + msaa render,
 		m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV)));
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE tmpRTVOffsetHandle = static_cast<CD3DX12_CPU_DESCRIPTOR_HANDLE>(m_DX12SRVHeap->Offset(
-		EngineConfig::ConstantBufferCount * EngineConfig::SwapChainBufferCount +
-		2 * EngineConfig::MaxTextureCount
-		+ 1
-		+ 1).cpuDescHandle);// 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors, after 1 shadow map
+	CD3DX12_CPU_DESCRIPTOR_HANDLE tmpRTVOffsetHandle = static_cast<CD3DX12_CPU_DESCRIPTOR_HANDLE>(
+		m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetShadowMap).cpuDescHandle);// 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors, after 1 shadow map
 
-	m_DX12ShadowManager->Initialzie(m_device.Get(), m_DX12CommandList.get(), /**/ tmpDSVOffsetHandle, /*nullptr??*/ tmpRTVOffsetHandle);
+	m_DX12ShadowManager->Initialzie(m_device.Get(), m_DX12CommandList.get(), tmpDSVOffsetHandle, tmpRTVOffsetHandle);
 }
 
 void DX12Device::UpdateFrameResource(D3DTimer d3dTimer)
@@ -536,4 +558,62 @@ UINT DX12Device::GetMaterialIndexAsMaterialName(const std::string materialName)
 	::OutputDebugStringA(msg.c_str());
 
 	return 0;
+}
+
+//////ray-tracing
+void DX12Device::InitDXRayTracing()
+{
+	//check support
+	D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
+	ThrowIfFailed(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5,
+		&options5, sizeof(options5)));
+	if (options5.RaytracingTier < D3D12_RAYTRACING_TIER_1_0)
+	{
+		::OutputDebugStringA("Raytracing not supported on device");
+		m_rtxSupported = false;
+		return;
+	}
+	m_rtxSupported = true;
+	m_DX12RayTracingManager = std::make_unique<DX12RayTracingManager>();
+
+	// ray out UAV
+	m_DX12RayTracingManager->InitRayOut(m_device.Get(), m_DX12CommandList.get(), m_DX12SRVHeap.get(), m_DX12SwapChain->GetClientWidth(), m_DX12SwapChain->GetClientHeight());
+
+	// BLAS/TLAS
+	m_DX12RayTracingManager->InitBLAS(m_device.Get(), m_DX12CommandList.get(), m_sceneGeometry);
+	m_DX12RayTracingManager->InitTLAS(m_device.Get(), m_DX12CommandList->GetCommandList(), m_sceneGeometry, m_renderItems);
+
+	// SRV writing
+	m_DX12RayTracingManager->BuildRayGeometryBuffers(
+		m_device.Get(),
+		m_DX12CommandList.get(),
+		m_DX12SRVHeap.get(),
+		m_indices,
+		m_positions,
+		m_normals,
+		m_texcoords,
+		m_tangents,
+		m_geoTable);
+
+	//state object
+	std::string poolMax = std::to_string(EngineConfig::MaxTextureCount);
+	std::string numLight = std::to_string(m_sceneData.lights.size() + 1); //default sunlight + 1
+	std::string numDirLight = std::to_string(m_sceneData.numDirectionalLight + 1); //default sunlight + 1
+	std::string numPointLight = std::to_string(m_sceneData.numPointLight);
+	std::string numSpotLight = std::to_string(m_sceneData.numSpotLight);
+	std::vector<std::string> macros;
+	macros.push_back(poolMax);
+	macros.push_back(numLight);
+	macros.push_back(numDirLight);
+	macros.push_back(numPointLight);
+	macros.push_back(numSpotLight);
+
+	m_DX12RayTracingManager->InitRayTracingPipeline(m_device.Get(), m_DX12RootSignature->GetRayTracingRootSignature(), macros);
+	//shader table
+	m_DX12RayTracingManager->CreateShaderTable(m_device.Get());
+}
+
+void DX12Device::ResizeRTOut()
+{
+	m_DX12RayTracingManager->InitRayOut(m_device.Get(), m_DX12CommandList.get(), m_DX12SRVHeap.get(), m_DX12SwapChain->GetClientWidth(), m_DX12SwapChain->GetClientHeight());
 }

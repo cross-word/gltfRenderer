@@ -36,7 +36,8 @@ DX12View::DX12View(
         break;
     case EViewType::EShaderResourceView:
         m_resourceView.m_shaderResourceViewDesc = *srvDesc;
-        device->CreateShaderResourceView(dx12Resource->GetResource(), &m_resourceView.m_shaderResourceViewDesc, m_cpuHandle);
+        if(dx12Resource==nullptr) device->CreateShaderResourceView(nullptr, &m_resourceView.m_shaderResourceViewDesc, m_cpuHandle);
+        else device->CreateShaderResourceView(dx12Resource->GetResource(), &m_resourceView.m_shaderResourceViewDesc, m_cpuHandle);
         break;
     case EViewType::EUnorderedAccessView:
         m_resourceView.m_unorederedAccessViewDesc = *uavDesc;
