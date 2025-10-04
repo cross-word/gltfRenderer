@@ -463,6 +463,23 @@ SceneData LoadGLTFScene(const std::wstring& filename)
     BuildNodeWorlds(model, nodeWorldsLH);
 
     CollectGLTFLights(model, nodeWorldsLH, scene.lights, scene);
+    if (scene.lights.empty())
+    {
+        Light sun{};
+        sun.Type = LIGHT_TYPE_DIRECTIONAL;
+        sun.Color = { 1.0f, 1.0f, 1.0f };
+        sun.Intensity = 5.5f;
+        sun.Direction = { 0.0f, -1.0f, 0.0f };
+        sun.Range = -1.0f;
+        sun.Position = { 0.0f, 0.0f, 0.0f };
+        sun.InnerCos = 0.0f;
+        sun.OuterCos = -1.0f;
+
+        scene.lights.push_back(sun);
+        scene.numDirectionalLight = 1;
+        scene.numPointLight = 0;
+        scene.numSpotLight = 0;
+    }
 
     return scene;
 }
