@@ -245,7 +245,7 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
         emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].SampleLevel(gsamLinearWrap, tex, 0).rgb;
     litColor.rgb += emissive * matData.gEmissiveStrength;
 
-    litColor.rgb = pow(saturate(litColor.rgb), 1.0 / 2.2);// gammma cor
+    //litColor.rgb = pow(saturate(litColor.rgb), 1.0 / 2.2);// gammma cor
 
     outAlpha = diffuseAlbedo.a;
     return litColor.rgb;
