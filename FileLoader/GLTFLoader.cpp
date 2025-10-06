@@ -303,12 +303,32 @@ SceneData LoadGLTFScene(const std::wstring& filename)
 
     ///////////texture path
     auto base = std::filesystem::weakly_canonical(std::filesystem::absolute(path.parent_path()));
-    scene.textures.reserve(model.images.size());
-    for (const auto& img : model.images)
+    scene.textures.reserve(model.textures.size());
+    for (const auto& tex : model.textures)
     {
-        std::filesystem::path p = img.uri;
-        auto abs = std::filesystem::weakly_canonical(base / p);
-        scene.textures.push_back(abs.wstring());
+        int imgIdx = tex.source;
+        std::wstring absW;
+
+        if (imgIdx >= 0 && imgIdx < (int)model.images.size())
+        {
+            const auto& img = model.images[imgIdx];
+            if (!img.uri.empty())
+            {
+                std::filesystem::path p = img.uri;
+                auto abs = std::filesystem::weakly_canonical(base / p);
+                absW = abs.wstring();
+            }
+            else
+            {
+                absW = L"";
+            }
+        }
+        else
+        {
+            absW = L"";
+        }
+
+        scene.textures.push_back(absW);
     }
 
     ///////////material info

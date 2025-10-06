@@ -60,6 +60,87 @@ float SpotAttenuation(float cosTheta, float innerCos, float outerCos)
     return t * t;
 }
 
+static const float PI = 3.14159265f;
+
+float D_GGX(float NdotH, float a)
+{
+    float a2 = a * a;
+    float d = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
+    return a2 / (PI * d * d);
+}
+
+float G_SchlickGGX(float NdotX, float k)
+{
+    return NdotX / (NdotX * (1.0f - k) + k);
+}
+
+float G_Smith(float NdotV, float NdotL, float k)
+{
+    return G_SchlickGGX(NdotV, k) * G_SchlickGGX(NdotL, k);
+}
+
+float3 FresnelSchlick(float cosTheta, float3 F0)
+{
+    return F0 + (1.0f - F0) * pow(1.0f - cosTheta, 5.0f);
+}
+
+//Cook–Torrance GGX
+float3 DirectBRDF_GGX(
+    Light Lgt,
+    float3 P, float3 N, float3 V,
+    float3 baseColor, float metal, float roughness)
+{
+    float3 L;
+    float3 radiance;
+
+    if (Lgt.Type == 0)
+    {// directional
+        L = normalize(-Lgt.Direction);
+        radiance = Lgt.Color;
+    }
+    else
+    {// point/spot
+        float3 toL = Lgt.Position - P;
+        float dist2 = dot(toL, toL);
+        float dist = sqrt(dist2);
+        L = toL / max(dist, 1e-4);
+        float atten = (Lgt.Range > 0.0f) ? saturate(1.0f - dist / Lgt.Range) : 1.0f;
+        atten *= atten; // quad-ish
+        radiance = Lgt.Color * atten;
+
+        if (Lgt.Type == 2) 
+        {// spot
+            float cosTheta = dot(-L, normalize(Lgt.Direction));
+            float spot = smoothstep(Lgt.OuterCos, Lgt.InnerCos, cosTheta);
+            radiance *= spot;
+        }
+    }
+
+    float NdotL = saturate(dot(N, L));
+    if (NdotL <= 0.0f) return 0;
+
+    float3 H = normalize(V + L);
+    float NdotV = saturate(dot(N, V));
+    float NdotH = saturate(dot(N, H));
+    float VdotH = saturate(dot(V, H));
+
+    float3 F0 = lerp(float3(0.04, 0.04, 0.04), baseColor, metal);
+    float a = max(roughness, 0.04f);
+    float a2 = a * a;
+
+    float  D = D_GGX(NdotH, a);
+    float  k = (a + 1.0f); // Schlick–GGX remap
+    k = (k * k) * 0.125f; // = (a^2)/2 approxim.
+    float  G = G_Smith(NdotV, NdotL, k);
+    float3 F = FresnelSchlick(VdotH, F0);
+
+    float3 spec = (D * G * F) / max(4.0f * NdotV * NdotL, 1e-4f);
+    float3 kD = (1.0f - F) * (1.0f - metal);
+    float3 diff = kD * baseColor / PI;
+
+    return (diff + spec) * radiance * NdotL;
+}
+
 // ------------------------------------------------------------
 // Directional: E[lux] ≈ Intensity * N·L
 float3 ComputeDirectionalLight(Light L, Material mat, float3 normal, float3 eyeVector)

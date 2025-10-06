@@ -72,7 +72,28 @@ DX12TextureManager::DecodedTextureData DX12TextureManager::DecodeTextureFromFile
         decoded.metadata = decoded.image.GetMetadata();
     }
 
-    decoded.metadata.format = DXGI_FORMAT_R8G8B8A8_TYPELESS;
+    // if not RGBA, should transform them to RGBA
+    const bool wantSRGB = (colorSpace == TextureColorSpace::SRGB);
+    DXGI_FORMAT src = decoded.metadata.format;
+    const bool isBGRA = (src == DXGI_FORMAT_B8G8R8A8_UNORM || src == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB);
+
+    if (isBGRA) {
+        DXGI_FORMAT target = wantSRGB ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+            : DXGI_FORMAT_R8G8B8A8_UNORM;
+        ScratchImage conv;
+        ThrowIfFailed(Convert(decoded.image.GetImages(), decoded.image.GetImageCount(),
+            decoded.metadata, target, TEX_FILTER_DEFAULT, 0.0f, conv));
+        decoded.image = std::move(conv);
+        decoded.metadata = decoded.image.GetMetadata();
+    }
+
+    DXGI_FORMAT f = decoded.metadata.format;
+    if (f == DXGI_FORMAT_R8G8B8A8_UNORM || f == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+        decoded.metadata.format = DXGI_FORMAT_R8G8B8A8_TYPELESS;
+    else if (f == DXGI_FORMAT_B8G8R8A8_UNORM || f == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB)
+        decoded.metadata.format = DXGI_FORMAT_R8G8B8A8_TYPELESS; // forced RGBA
+    else
+        decoded.metadata.format = MakeTypeless(f);
 
 #if defined(_DEBUG)
     std::wstringstream ss;
@@ -98,6 +119,13 @@ void DX12TextureManager::CreateTextureFromDecodedData(
         OutputDebugStringW(ss.str().c_str());
         ThrowIfFailed(E_FAIL);
     }
+    DXGI_FORMAT base = decodedData.metadata.format;
+    DXGI_FORMAT fmtSRGB = (base == DXGI_FORMAT_B8G8R8A8_TYPELESS) ? DXGI_FORMAT_B8G8R8A8_UNORM_SRGB :
+        (base == DXGI_FORMAT_R8G8B8A8_TYPELESS) ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB :
+        MakeSRGB(base);
+    DXGI_FORMAT fmtLinear = (base == DXGI_FORMAT_B8G8R8A8_TYPELESS) ? DXGI_FORMAT_B8G8R8A8_UNORM :
+        (base == DXGI_FORMAT_R8G8B8A8_TYPELESS) ? DXGI_FORMAT_R8G8B8A8_UNORM :
+        MakeTypelessUNORM(base);
 
     m_textureResource = std::make_unique<DX12ResourceTexture>();
     m_textureResource->CreateTexture(
@@ -108,7 +136,7 @@ void DX12TextureManager::CreateTextureFromDecodedData(
 
     D3D12_SHADER_RESOURCE_VIEW_DESC SRGBSrvDesc{};
     SRGBSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    SRGBSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    SRGBSrvDesc.Format = fmtSRGB;
     SRGBSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     SRGBSrvDesc.Texture2D.MostDetailedMip = 0;
     SRGBSrvDesc.Texture2D.MipLevels = m_textureResource->GetResource()->GetDesc().MipLevels;
@@ -125,7 +153,7 @@ void DX12TextureManager::CreateTextureFromDecodedData(
 
     D3D12_SHADER_RESOURCE_VIEW_DESC LinearSrvDesc{};
     LinearSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    LinearSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    LinearSrvDesc.Format = fmtLinear;
     LinearSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     LinearSrvDesc.Texture2D.MostDetailedMip = 0;
     LinearSrvDesc.Texture2D.MipLevels = m_textureResource->GetResource()->GetDesc().MipLevels;

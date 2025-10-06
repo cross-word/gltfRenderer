@@ -105,7 +105,15 @@ float4 PS(VertexOut pin) : SV_Target
     diffuseAlbedo.rgb *= (1.0 - metal);
 
     Material mat = { diffuseAlbedo, fresnelR0, shininess };
-    float4 directLight = ComputeLighting(gLights, mat, pin.PosW, bumpedNormalW, toEyeW, shadowFactor);
+    //float4 directLight = ComputeLighting(gLights, mat, pin.PosW, bumpedNormalW, toEyeW, shadowFactor);
+    float3 directRGB = 0;
+    [unroll]
+        for (int i = 0; i < NUM_LIGHTS; ++i)
+        {
+            float3 d = DirectBRDF_GGX(gLights[i], pin.PosW, bumpedNormalW, toEyeW,
+                diffuseAlbedo.rgb, metal, roughness);
+            directRGB += d * shadowFactor;//only first shadow
+        }
 
     // sky hemisphere
     float3 hemiTop = float3(0.55, 0.62, 0.80); // skyblue scaling
@@ -148,12 +156,11 @@ float4 PS(VertexOut pin) : SV_Target
     float3 specularIBL = prefiltered * (F * brdf.x + brdf.y);
     float3 ibl = ambientOcclusion * (kD * diffuseIBL + specularIBL) * gIBLStrength;
 
-    // emissive
     float3 emissive = matData.gEmissiveFactor;
-    if (matData.gEmissiveIdx < NUM_TEXTURE) emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].Sample(gsamLinearWrap, pin.TexC).rgb;
+    if (matData.gEmissiveIdx < NUM_TEXTURE)
+        emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].Sample(gsamLinearWrap, pin.TexC).rgb;
 
-    float3 color = (ambientRGB + directLight.rgb + ibl + emissive * matData.gEmissiveStrength);
-    color = ToneMapACESFast(color, gExposure);    // tone mapping
-
+    float3 color = ambientRGB + directRGB + ibl + emissive * matData.gEmissiveStrength;
+    color = ToneMapACESFast(color, gExposure);
     return float4(color, diffuseAlbedo.a);
 }

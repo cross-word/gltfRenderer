@@ -465,7 +465,7 @@ void DX12Device::PrepareInitialResource()
 		UINT matIndex = (m_sceneData.primitives[instance.primitive].material >= 0 ? m_sceneData.primitives[instance.primitive].material : 0);
 		renderItem.SetMaterialIndex(matIndex);
 		UINT tex = m_sceneData.materials[matIndex].BaseColorIndex; // baseColor
-		if (tex < 0 || tex >= EngineConfig::MaxTextureCount) tex = 0; // default white
+		if (tex < 0 || tex >= EngineConfig::MaxTextureCount) tex = EngineConfig::MaxTextureCount - 1; // default white
 		renderItem.SetTextureIndex(tex);
 		m_renderItems.push_back(std::move(renderItem));
 	}
