@@ -181,16 +181,18 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
     float3 toEye = normalize(gEyePosW - posW);
 
     //occlusion,roughness,metalic in linear texture map
-    float3 orm = gTextureMapsLinear[matData.gORMIdx].SampleLevel(gsamAnisotropicWrap, tex, 0).rgb;
-    if (matData.gORMIdx >= NUM_TEXTURE) orm = float3(1.0f, 1.0f, 0.0f);
+    float3 orm = (matData.gORMIdx < NUM_TEXTURE) ? gTextureMapsLinear[matData.gORMIdx].SampleLevel(gsamAnisotropicWrap, tex, 0).rgb : float3(1.0f, 1.0f, 0.0f);
+    // if there is occlusion texture, use that
+    float aoTex = (matData.gOcclusionIndex < NUM_TEXTURE) ? gTextureMapsLinear[matData.gOcclusionIndex].SampleLevel(gsamAnisotropicWrap, tex, 0).r : orm.r;
+    float ambientOcclusion = lerp(1.0f, aoTex, saturate(matData.gOcclusionStrength));
 
-    float ambientOcclusion = lerp(1.0f, orm.r, saturate(matData.gOcclusionStrength));
-    roughness = clamp(saturate(roughness * orm.g), 0.45f, 0.90f);
+    roughness = saturate(roughness * orm.g);
+    roughness = max(roughness, 0.06f);
     float metal = saturate(matData.gMetallic * orm.b);
 
-    const float shininess = (1.0f - roughness) * (1.0f - roughness);
+    const float shininess = (1.0 - roughness) * (1.0 - roughness);
     fresnelR0 = lerp(fresnelR0, diffuseAlbedo.rgb, metal);
-    diffuseAlbedo.rgb *= (1.0f - metal);
+    diffuseAlbedo.rgb *= (1.0 - metal);
 
     float shadow = 1.0f;
     if (payload.rayDepth < MAX_RAY_DEPTH)
@@ -219,30 +221,56 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
     Material mat = { diffuseAlbedo, fresnelR0, shininess };
     float4 directLight = ComputeLighting(gLights, mat, posW, bumpedNormal, toEye, float3(shadow, shadow, shadow));
 
-    // ambient F0 approximation
-    float3 hemi = EvaluateEnvironment(bumpedNormal);
-    float3 kS = lerp(float3(0.04f, 0.04f, 0.04f), matData.DiffuseAlbedo.rgb, metal);
-    float3 kD = (1.0f - kS) * (1.0f - metal);
+    // sky hemisphere
+    float3 hemiTop = float3(0.55, 0.62, 0.80); // skyblue scaling
+    float3 hemiBot = float3(0.08, 0.07, 0.06);
+    float up = saturate(dot(bumpedNormal, float3(0, 1, 0)));
+    float3 hemi = lerp(hemiBot, hemiTop, up);
+
+    // IBL (diffuse + specular)
+    float3 N = SafeNormalize(bumpedNormal);
+    float3 V = SafeNormalize(toEye);
+    float  NdotV = saturate(dot(N, V));
+
+    // base reflectance
+    float3 F0 = lerp(float3(0.04, 0.04, 0.04), diffuseAlbedo.rgb, metal);
+    float3 F = FresnelSchlickRoughness(NdotV, F0, roughness);
+    float3 kD = (1.0 - F) * (1.0 - metal);
+    kD = max(kD, 0.02);
 
     // final ambient
-    float3 ambientRGB = ambientOcclusion * kD * hemi;
+    float3 ambientRGB = ambientOcclusion * (kD * gAmbientLight.rgb * hemi);
     const float ambientShadowStrength = 0.7;
     ambientRGB *= lerp(1.0, shadow, ambientShadowStrength);
     float4 ambient = float4(ambientRGB, 0.0);
 
-    // phong shading result) ambient + diffuse + specular
-    float4 litColor = ambient + directLight;
+    // diffuse IBL
+    float3 irradiance = gIrradianceMap.SampleLevel(gsamLinearClamp, N, 0).rgb;
+    float3 diffuseIBL = irradiance * diffuseAlbedo.rgb;
 
-    // add emissive result
+    // specular IBL
+    float  maxMip = max(gSpecularMipCountMinus1, 0.0);
+    float3 R = SafeNormalize(reflect(-V, N));
+    float  mip = clamp(roughness * maxMip, 0.0, maxMip);
+    float3 prefiltered = gSpecularMap.SampleLevel(gsamLinearClamp, R, mip).rgb;
+    float2 brdf = gBRDFLUT.SampleLevel(gsamLinearClamp, float2(NdotV, roughness), 0).rg;
+
+    // NaN guard
+    prefiltered = any(isnan(prefiltered)) ? 0 : prefiltered;
+    brdf = any(isnan(brdf)) ? 0 : brdf;
+
+    float3 specularIBL = prefiltered * (F * brdf.x + brdf.y);
+    float3 ibl = ambientOcclusion * (kD * diffuseIBL + specularIBL) * gIBLStrength;
+
+    // emissive
     float3 emissive = matData.gEmissiveFactor;
-    if (matData.gEmissiveIdx < NUM_TEXTURE)
-        emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].SampleLevel(gsamLinearWrap, tex, 0).rgb;
-    litColor.rgb += emissive * matData.gEmissiveStrength;
+    if (matData.gEmissiveIdx < NUM_TEXTURE) emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].SampleLevel(gsamLinearWrap, tex, 0).rgb;
 
-    //litColor.rgb = pow(saturate(litColor.rgb), 1.0 / 2.2);// gammma cor
+    float3 color = (ambientRGB + directLight.rgb + ibl + emissive * matData.gEmissiveStrength);
+    color = ToneMapACESFast(color, gExposure); // tone mapping
 
     outAlpha = diffuseAlbedo.a;
-    return litColor.rgb;
+    return color;
 }
 
 // role of VS in rasterize shader

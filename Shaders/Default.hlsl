@@ -93,6 +93,7 @@ float4 PS(VertexOut pin) : SV_Target
     float ambientOcclusion = lerp(1.0f, aoTex, saturate(matData.gOcclusionStrength));
 
     roughness = saturate(roughness * orm.g);
+    roughness = max(roughness, 0.06f);
     float metal = saturate(matData.gMetallic * orm.b);
 
     // Only the first light casts a shadow.
@@ -104,8 +105,7 @@ float4 PS(VertexOut pin) : SV_Target
     diffuseAlbedo.rgb *= (1.0 - metal);
 
     Material mat = { diffuseAlbedo, fresnelR0, shininess };
-    float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
-        bumpedNormalW, toEyeW, shadowFactor);
+    float4 directLight = ComputeLighting(gLights, mat, pin.PosW, bumpedNormalW, toEyeW, shadowFactor);
 
     // sky hemisphere
     float3 hemiTop = float3(0.55, 0.62, 0.80); // skyblue scaling
@@ -113,7 +113,7 @@ float4 PS(VertexOut pin) : SV_Target
     float up = saturate(dot(bumpedNormalW, float3(0, 1, 0)));
     float3 hemi = lerp(hemiBot, hemiTop, up);
 
-    // ---- IBL (diffuse + specular) ----
+    // IBL (diffuse + specular)
     float3 N = SafeNormalize(bumpedNormalW);
     float3 V = SafeNormalize(toEyeW);
     float  NdotV = saturate(dot(N, V));
@@ -122,6 +122,7 @@ float4 PS(VertexOut pin) : SV_Target
     float3 F0 = lerp(float3(0.04, 0.04, 0.04), diffuseAlbedo.rgb, metal);
     float3 F = FresnelSchlickRoughness(NdotV, F0, roughness);
     float3 kD = (1.0 - F) * (1.0 - metal);
+    kD = max(kD, 0.02);
 
     // final ambient
     float3 ambientRGB = ambientOcclusion * (kD * gAmbientLight * hemi);
