@@ -145,4 +145,10 @@ private:
 	std::vector<DirectX::XMFLOAT2> m_texcoords;
 	std::vector<DirectX::XMFLOAT4> m_tangents;
 	std::vector<GeometryMetadataCPU> m_geoTable;
+
+	//tmp
+	std::unique_ptr<DX12DDSManager> m_iblIrr;
+	std::unique_ptr<DX12DDSManager> m_iblSpec;
+	std::unique_ptr<DX12DDSManager> m_brdf;
+	float m_specMipMapCount = 0.0f;
 };

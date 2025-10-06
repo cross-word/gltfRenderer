@@ -40,12 +40,18 @@ struct EngineConfig
     //static inline const std::wstring kScenePathS = MakePath(LR"(C:\Users\rldnr\Downloads\glTF-Sample-Models-main\glTF-Sample-Models-main\2.0\Sponza\glTF\Sponza.gltf)");
     static inline const std::wstring kShaderRayTracingPathS = MakePath(LR"(..\..\..\Shaders\RayTracing.hlsl)");
     static inline const std::wstring kShaderDirectoryPathS = MakePath(LR"(..\..\..\Shaders)");
+    static inline const std::wstring kIrradiancePathS = MakePath(LR"(D:\MiniEngine\CLI\irradiance.dds)");
+    static inline const std::wstring kSpecularPathS = MakePath(LR"(D:\MiniEngine\CLI\specular.dds)");
+    static inline const std::wstring kBRDFPathS = MakePath(LR"(D:\MiniEngine\CLI\brdf.dds)");
+
     static inline const wchar_t* ShaderFilePath = kShaderPathS.c_str();
     static inline const wchar_t* ShadowShaderFilePath = kShadowShaderPathS.c_str();
     static inline const wchar_t* SceneFilePath = kScenePathS.c_str();
     static inline const wchar_t* ShaderRayTracingPath = kShaderRayTracingPathS.c_str();
     static inline const wchar_t* ShaderDirectoryPath = kShaderDirectoryPathS.c_str();
-
+    static inline const wchar_t* IrradianceFilePath = kIrradiancePathS.c_str();
+    static inline const wchar_t* SpecularFilePath = kSpecularPathS.c_str();
+    static inline const wchar_t* BRDFFilePath = kBRDFPathS.c_str();
 
     static constexpr UINT NumThreadWorker = 4;
     static constexpr bool UseMultiThread = false;

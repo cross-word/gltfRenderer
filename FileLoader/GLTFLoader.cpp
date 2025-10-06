@@ -324,10 +324,11 @@ SceneData LoadGLTFScene(const std::wstring& filename)
                 (float)m.pbrMetallicRoughness.baseColorFactor[2],
                 (float)m.pbrMetallicRoughness.baseColorFactor[3]);
         }
-        if (m.pbrMetallicRoughness.roughnessFactor > 0) mt.Roughness = (float)m.pbrMetallicRoughness.roughnessFactor;
-        if (m.pbrMetallicRoughness.metallicFactor > 0)  mt.Metallic = (float)m.pbrMetallicRoughness.metallicFactor;
-        if (m.normalTexture.scale > 0) mt.NormalScale = (float)m.normalTexture.scale;
-        if (m.occlusionTexture.strength > 0) mt.OcclusionStrength = (float)m.occlusionTexture.strength;
+        mt.Roughness = (float)(m.pbrMetallicRoughness.roughnessFactor);
+        mt.Metallic = (float)(m.pbrMetallicRoughness.metallicFactor);
+        mt.NormalScale = (m.normalTexture.scale == 0.0) ? 1.0f : (float)m.normalTexture.scale;
+        mt.OcclusionStrength = (m.occlusionTexture.strength == 0.0) ? 1.0f : (float)m.occlusionTexture.strength;
+
         //if (m.extensions["KHR_materials_emissive_strength"])
         if (m.emissiveFactor.size() == 3)
         {

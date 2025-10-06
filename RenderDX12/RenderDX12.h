@@ -82,6 +82,7 @@ private:
         HeapSlice cbvSlice{};
         HeapSlice texSlice{};
         HeapSlice matSlice{};
+        HeapSlice iblSlice{};
         HeapSlice shadowSlice{};
         D3D12_CPU_DESCRIPTOR_HANDLE shadowDSVHandle{};
         PassType passType = PassType::Main;

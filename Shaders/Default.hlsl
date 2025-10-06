@@ -86,11 +86,13 @@ float4 PS(VertexOut pin) : SV_Target
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
 
     //occlusion,roughness,metalic in linear texture map
-    float3 orm = gTextureMapsLinear[matData.gORMIdx].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
-    if (matData.gORMIdx >= NUM_TEXTURE) orm = float3(1.0f, 1.0f, 0.0f);
-    float ambientOcclusion = lerp(1.0, orm.r, saturate(matData.gOcclusionStrength));
+    float3 orm = (matData.gORMIdx < NUM_TEXTURE) ? gTextureMapsLinear[matData.gORMIdx].Sample(gsamAnisotropicWrap, pin.TexC).rgb : float3(1.0f, 1.0f, 0.0f);
+
+    // if there is occlusion texture, use that
+    float aoTex = (matData.gOcclusionIndex < NUM_TEXTURE) ? gTextureMapsLinear[matData.gOcclusionIndex].Sample(gsamAnisotropicWrap, pin.TexC).r : orm.r;
+    float ambientOcclusion = lerp(1.0f, aoTex, saturate(matData.gOcclusionStrength));
+
     roughness = saturate(roughness * orm.g);
-    roughness = clamp(roughness, 0.45, 0.90);
     float metal = saturate(matData.gMetallic * orm.b);
 
     // Only the first light casts a shadow.
@@ -111,9 +113,15 @@ float4 PS(VertexOut pin) : SV_Target
     float up = saturate(dot(bumpedNormalW, float3(0, 1, 0)));
     float3 hemi = lerp(hemiBot, hemiTop, up);
 
-    // ambient F0 approximation
-    float3 kS = lerp(float3(0.04, 0.04, 0.04), matData.DiffuseAlbedo.rgb, metal);
-    float3 kD = (1.0 - kS) * (1.0 - metal);
+    // ---- IBL (diffuse + specular) ----
+    float3 N = SafeNormalize(bumpedNormalW);
+    float3 V = SafeNormalize(toEyeW);
+    float  NdotV = saturate(dot(N, V));
+
+    // base reflectance
+    float3 F0 = lerp(float3(0.04, 0.04, 0.04), diffuseAlbedo.rgb, metal);
+    float3 F = FresnelSchlickRoughness(NdotV, F0, roughness);
+    float3 kD = (1.0 - F) * (1.0 - metal);
 
     // final ambient
     float3 ambientRGB = ambientOcclusion * (kD * gAmbientLight * hemi);
@@ -121,17 +129,30 @@ float4 PS(VertexOut pin) : SV_Target
     ambientRGB *= lerp(1.0, s, ambientShadowStrength);
     float4 ambient = float4(ambientRGB, 0.0);
 
-    // phong shading result) ambient + diffuse + specular
-    float4 litColor = ambient + directLight;
+    // diffuse IBL
+    float3 irradiance = gIrradianceMap.Sample(gsamLinearClamp, N).rgb;
+    float3 diffuseIBL = irradiance * diffuseAlbedo.rgb;
 
-    // add emissive result
+    // specular IBL
+    float  maxMip = max(gSpecularMipCountMinus1, 0.0);
+    float3 R = SafeNormalize(reflect(-V, N));
+    float  mip = clamp(roughness * maxMip, 0.0, maxMip);
+    float3 prefiltered = gSpecularMap.SampleLevel(gsamLinearClamp, R, mip).rgb;
+    float2 brdf = gBRDFLUT.Sample(gsamLinearClamp, float2(NdotV, roughness)).rg;
+
+    // NaN guard
+    prefiltered = any(isnan(prefiltered)) ? 0 : prefiltered;
+    brdf = any(isnan(brdf)) ? 0 : brdf;
+
+    float3 specularIBL = prefiltered * (F * brdf.x + brdf.y);
+    float3 ibl = ambientOcclusion * (kD * diffuseIBL + specularIBL) * gIBLStrength;
+
+    // emissive
     float3 emissive = matData.gEmissiveFactor;
-    if (matData.gEmissiveIdx < NUM_TEXTURE)
-        emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].Sample(gsamLinearWrap, pin.TexC).rgb;
-    litColor.rgb += emissive * matData.gEmissiveStrength;
+    if (matData.gEmissiveIdx < NUM_TEXTURE) emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].Sample(gsamLinearWrap, pin.TexC).rgb;
 
-    //litColor.rgb = pow(saturate(litColor.rgb), 1.0 / 2.2);// gammma cor
+    float3 color = (ambientRGB + directLight.rgb + ibl + emissive * matData.gEmissiveStrength);
+    color = ToneMapACESFast(color, gExposure);    // tone mapping
 
-    litColor.a = diffuseAlbedo.a;
-    return litColor;
+    return float4(color, diffuseAlbedo.a);
 }

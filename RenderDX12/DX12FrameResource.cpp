@@ -60,25 +60,30 @@ void DX12FrameResource::CreateSRV(ID3D12Device* device, DX12DescriptorHeap* dx12
 		&passCBVDesc);
 }
 
-void DX12FrameResource::UploadPassConstant(D3DCamera* d3dCamera, std::vector<Light>& lights, D3DTimer d3dTimer)
+void DX12FrameResource::UploadPassConstant(D3DCamera* d3dCamera, std::vector<Light>& lights, D3DTimer d3dTimer, float specularMipMapCountMinus1)
 {
 	PassConstants passConst;
-	passConst.AmbientLight = { 0.08f, 0.08f, 0.08f, 1.0f };
+	ZeroMemory(&passConst, sizeof(passConst));
+	passConst.AmbientLight = { 0.03f, 0.03f, 0.03f, 1.0f };
 	Light sun{}; //sun light
 
 	float pi = 3.1415926535f;
 	float theta = (2 * pi) / (12000.0f) * d3dTimer.GetTotalTime(); // 12s is one period
 
 	sun.Type = LIGHT_TYPE_DIRECTIONAL;
-	sun.Color = { 1.0f, 1.0f, 1.0f };
-	sun.Intensity = 1.0f;
-	sun.Direction = { 0.0f, -cosf(theta), sinf(theta) };
+	sun.Color = { 1,1,1 };
+	sun.Intensity = 2.0f;
+	//sun.Direction = { 0.0f, -cosf(theta), sinf(theta) };
+	sun.Direction = { 0.0f, -1.0f, 0.0f };
 	sun.Range = -1.0f;
 	sun.Position = { 0.0f, 0.0f, 0.0f };
 	sun.InnerCos = 0.0f;
 	sun.OuterCos = -1.0f;
 	passConst.Lights[0] = sun;
 
+	passConst.gExposure = 1.0f;
+	passConst.gIBLStrength = 0.5f;
+	passConst.gSpecularMipCountMinus1 = specularMipMapCountMinus1;
 	//gather lights from .gltf
 	for (uint16_t i = 0; i < lights.size(); ++i)
 	{

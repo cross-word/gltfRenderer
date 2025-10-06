@@ -39,7 +39,7 @@ public:
     void ResetAllocator() { ThrowIfFailed(m_commandAllocator->Reset()); }
     void CreateSRV(ID3D12Device* device, DX12DescriptorHeap* dx12DescriptorHeap, uint32_t frameIndex);
 
-    void UploadPassConstant(D3DCamera* d3dCamera, std::vector<Light>& lights, D3DTimer d3dTimer);
+    void UploadPassConstant(D3DCamera* d3dCamera, std::vector<Light>& lights, D3DTimer d3dTimer, float specularMipMapCountMinus1);
     void UploadObjectConstant(
         ID3D12Device* device,
         DX12CommandList* dx12CommandList,

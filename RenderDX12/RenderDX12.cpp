@@ -184,7 +184,8 @@ void RenderDX12::AllocateWorkerDrawingCommand(uint32_t i)
 		commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 		commandList->SetGraphicsRootDescriptorTable(0, job.cbvSlice.gpuDescHandle);
 		commandList->SetGraphicsRootDescriptorTable(1, job.texSlice.gpuDescHandle);
-		commandList->SetGraphicsRootDescriptorTable(2, job.matSlice.gpuDescHandle);
+		commandList->SetGraphicsRootDescriptorTable(2, job.matSlice.gpuDescHandle);		
+		commandList->SetGraphicsRootDescriptorTable(5, job.iblSlice.gpuDescHandle);
 		if (job.passType == WorkerJobDrawing::PassType::Main)
 		{
 			commandList->SetGraphicsRootDescriptorTable(3, job.shadowSlice.gpuDescHandle);
@@ -287,11 +288,12 @@ void RenderDX12::RecordAndSubmit_Single()
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(3, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetShadowMap).gpuDescHandle);
 		UINT rtRootConstants[3] = { 0,0,0 };//dummy
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRoot32BitConstants(4, 3, rtRootConstants, 0);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(5, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayTLAS).gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(6, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayGeometry).gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(7, rayOutOffset.gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(8, rayAccumOffset.gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(9, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayIndex).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(5, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetIrradiance).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(6, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayTLAS).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(7, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayGeometry).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(8, rayOutOffset.gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(9, rayAccumOffset.gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(10, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayIndex).gpuDescHandle);
 
 		D3D12_DISPATCH_RAYS_DESC desc{};
 		desc.RayGenerationShaderRecord.StartAddress = m_DX12Device.GetDX12RayTracingManager()->GetRayGenShaderTable()->GetGPUVirtualAddress();
@@ -347,6 +349,7 @@ void RenderDX12::RecordAndSubmit_Single()
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootDescriptorTable(0, cbvSlice.gpuDescHandle);
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootDescriptorTable(1, texSlice.gpuDescHandle);
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootDescriptorTable(2, matSlice.gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootDescriptorTable(5, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetIrradiance).gpuDescHandle);
 
 		for (uint32_t i = 0; i < m_DX12Device.GetRenderItemSize(); ++i)
 		{
@@ -519,6 +522,7 @@ void RenderDX12::RecordAndSubmit_Multi()
 	HeapSlice cbvSlice = cbvSrvHeap->Offset(cbvSliceIndex);
 	HeapSlice texSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetTextureSRGB);
 	HeapSlice matSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetMaterial);
+	HeapSlice iblSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetIrradiance);
 	HeapSlice shadowMapSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetShadowMap);
 
 	if (numWorkers > 0)
@@ -537,6 +541,7 @@ void RenderDX12::RecordAndSubmit_Multi()
 				job.cbvSlice = cbvSlice;
 				job.texSlice = texSlice;
 				job.matSlice = matSlice;
+				job.iblSlice = iblSlice;
 				job.shadowDSVHandle = shadowDSVOffsetHandle;
 				job.passType = WorkerJobDrawing::PassType::Shadow;
 				job.ready = true;

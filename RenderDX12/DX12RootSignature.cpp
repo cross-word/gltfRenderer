@@ -21,7 +21,7 @@ void DX12RootSignature::Initialize(ID3D12Device* device)
 void DX12RootSignature::CreateRasterizeRootSignature(ID3D12Device* device)
 {
 	// Root parameter can be a table, root descriptor or root constants.
-	CD3DX12_ROOT_PARAMETER1 slotRootParameter[5];
+	CD3DX12_ROOT_PARAMETER1 slotRootParameter[6];
 
 	// Create a single descriptor table of CBVs.
 	CD3DX12_DESCRIPTOR_RANGE1 cbvTable;
@@ -61,6 +61,8 @@ void DX12RootSignature::CreateRasterizeRootSignature(ID3D12Device* device)
 		2,
 		1); //t2 space1 shadow
 
+	CD3DX12_DESCRIPTOR_RANGE1 iblTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 3, 1); //t3 space1
+
 	auto staticSamplers = GetStaticSamplers();
 
 	// A root signature is an array of root parameters.
@@ -69,9 +71,10 @@ void DX12RootSignature::CreateRasterizeRootSignature(ID3D12Device* device)
 	slotRootParameter[2].InitAsDescriptorTable(2, srvTable, D3D12_SHADER_VISIBILITY_ALL);
 	slotRootParameter[3].InitAsDescriptorTable(1, &shadowMapTable, D3D12_SHADER_VISIBILITY_ALL);
 	slotRootParameter[4].InitAsConstants(3, 2, 0); // index of textur/material/world
+	slotRootParameter[5].InitAsDescriptorTable(1, &iblTable, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	const UINT samplerSize = SizeToU32(staticSamplers.size());
-	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc(5, slotRootParameter, samplerSize, staticSamplers.data(), D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc(6, slotRootParameter, samplerSize, staticSamplers.data(), D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	ComPtr<ID3DBlob> signature = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
@@ -90,7 +93,7 @@ void DX12RootSignature::CreateRasterizeRootSignature(ID3D12Device* device)
 void DX12RootSignature::CreateRayTracingRootSignature(ID3D12Device* device)
 {
 	// Root parameter can be a table, root descriptor or root constants.
-	CD3DX12_ROOT_PARAMETER1 slotRootParameter[10];
+	CD3DX12_ROOT_PARAMETER1 slotRootParameter[11];
 
 	// Create a single descriptor table of CBVs.
 	CD3DX12_DESCRIPTOR_RANGE1 cbvTable;
@@ -125,7 +128,7 @@ void DX12RootSignature::CreateRayTracingRootSignature(ID3D12Device* device)
 	srvTableGeo.Init(
 		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 		1,
-		4,
+		6,
 		1);//t4 space1 geometry table
 
 	// Create a single descriptor table of shadow map.
@@ -152,6 +155,8 @@ void DX12RootSignature::CreateRayTracingRootSignature(ID3D12Device* device)
 	//t0~4 space3
 	CD3DX12_DESCRIPTOR_RANGE1 rayVar(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 0, 3);
 
+	CD3DX12_DESCRIPTOR_RANGE1 iblTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 3, 1); //t3 space1
+
 	auto staticSamplers = GetStaticSamplers();
 
 	// A root signature is an array of root parameters.
@@ -160,15 +165,16 @@ void DX12RootSignature::CreateRayTracingRootSignature(ID3D12Device* device)
 	slotRootParameter[2].InitAsDescriptorTable(2, srvTable, D3D12_SHADER_VISIBILITY_ALL);
 	slotRootParameter[3].InitAsDescriptorTable(1, &shadowMapTable, D3D12_SHADER_VISIBILITY_ALL);
 	slotRootParameter[4].InitAsConstants(3, 2, 0); // index of texture/material/world
-	slotRootParameter[5].InitAsDescriptorTable(1, &TLASTable, D3D12_SHADER_VISIBILITY_ALL);
-	slotRootParameter[6].InitAsDescriptorTable(1, &srvTableGeo, D3D12_SHADER_VISIBILITY_ALL);
-	slotRootParameter[7].InitAsDescriptorTable(1, &RayOutTable, D3D12_SHADER_VISIBILITY_ALL);
-	slotRootParameter[8].InitAsDescriptorTable(1, &RayOutPrevTable, D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[5].InitAsDescriptorTable(1, &iblTable, D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[6].InitAsDescriptorTable(1, &TLASTable, D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[7].InitAsDescriptorTable(1, &srvTableGeo, D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[8].InitAsDescriptorTable(1, &RayOutTable, D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[9].InitAsDescriptorTable(1, &RayOutPrevTable, D3D12_SHADER_VISIBILITY_ALL);
 	//slotRootParameter[9].InitAsDescriptorTable(1, &RayOutCurrentTable, D3D12_SHADER_VISIBILITY_ALL);
-	slotRootParameter[9].InitAsDescriptorTable(1, &rayVar, D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[10].InitAsDescriptorTable(1, &rayVar, D3D12_SHADER_VISIBILITY_ALL);
 
 	const UINT samplerSize = SizeToU32(staticSamplers.size());
-	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc(10, slotRootParameter, samplerSize, staticSamplers.data(), D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc(11, slotRootParameter, samplerSize, staticSamplers.data(), D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	ComPtr<ID3DBlob> signature = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;

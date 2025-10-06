@@ -121,7 +121,8 @@ void DX12Device::InitDX12SRVHeap()
 		+ 1
 		+ 1
 		+ 1
-		+ 11, // 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors + 1 shadow map + 11 raytracing var
+		+ 3
+		+ 11, // 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors + 1 shadow map + 3 IBL + 11 raytracing var
 		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
 		D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
 }
@@ -477,6 +478,35 @@ void DX12Device::PrepareInitialResource()
 	//ray tracing prepare
 	InitDXRayTracing();
 
+	auto irrHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetIrradiance).cpuDescHandle;
+	auto specHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetSpecular).cpuDescHandle;
+	auto BRDFHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetBRDF).cpuDescHandle;
+
+	m_iblIrr = std::make_unique<DX12DDSManager>();
+	m_iblSpec = std::make_unique<DX12DDSManager>();
+	m_brdf = std::make_unique<DX12DDSManager>();
+	
+	m_iblIrr->LoadAndCreateDDSCubeResource(
+		m_device.Get(),
+		m_DX12CommandList.get(),
+		&irrHandle,
+		EngineConfig::IrradianceFilePath,
+		"ibl_irradiance");
+	m_iblSpec->LoadAndCreateDDSCubeResource(
+		m_device.Get(),
+		m_DX12CommandList.get(),
+		&specHandle,
+		EngineConfig::SpecularFilePath,
+		"ibl_specular");
+	m_brdf->LoadAndCreateDDSResource(
+		m_device.Get(),
+		m_DX12CommandList.get(),
+		&BRDFHandle,
+		EngineConfig::BRDFFilePath,
+		"ibl_brdf_lut");
+
+	m_specMipMapCount = float(m_iblSpec->GetDDSResource()->GetResource()->GetDesc().MipLevels - 1);
+	
 	//wait for upload and reset upload buffers
 	m_DX12CommandList->SubmitAndWait();
 	m_DX12MaterialConstantManager->GetMaterialResource()->ResetUploadBuffer();
@@ -517,7 +547,7 @@ void DX12Device::UpdateFrameResource(D3DTimer d3dTimer)
 {
 	// Has the GPU finished processing the commands of the current frame resource?
 	// If not, wait until the GPU has completed commands up to this fence point.
-	m_DX12FrameResource[GetCurrentBackBufferIndex()]->UploadPassConstant(m_camera.get(), m_sceneData.lights, d3dTimer);
+	m_DX12FrameResource[GetCurrentBackBufferIndex()]->UploadPassConstant(m_camera.get(), m_sceneData.lights, d3dTimer, m_specMipMapCount);
 	m_DX12FrameResource[GetCurrentBackBufferIndex()]->UploadObjectConstant(m_device.Get(), m_DX12CommandList.get(), m_renderItems, m_DX12ObjectConstantManager.get());
 }
 

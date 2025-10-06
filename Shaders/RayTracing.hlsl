@@ -16,7 +16,7 @@ struct GeometryMetadata
     uint _padding;
 };
 
-StructuredBuffer<GeometryMetadata> gGeometryTable : register(t4, space1);
+StructuredBuffer<GeometryMetadata> gGeometryTable : register(t6, space1);
 StructuredBuffer<uint>   gIndices   : register(t0, space3);
 StructuredBuffer<float3> gPositions : register(t1, space3);
 StructuredBuffer<float3> gNormals   : register(t2, space3);
@@ -239,7 +239,7 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
         emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].SampleLevel(gsamLinearWrap, tex, 0).rgb;
     litColor.rgb += emissive * matData.gEmissiveStrength;
 
-    litColor.rgb = pow(saturate(litColor.rgb), 1.0 / 2.2);// gammma cor
+    //litColor.rgb = pow(saturate(litColor.rgb), 1.0 / 2.2);// gammma cor
 
     outAlpha = diffuseAlbedo.a;
     return litColor.rgb;

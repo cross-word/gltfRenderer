@@ -157,8 +157,10 @@ void DX12TextureManager::CreateDummyTextureResource(
 {
     TexMetadata meta;
     ScratchImage img;
-    meta.width = 1; meta.height = 1;
-    meta.arraySize = 1; meta.mipLevels = 1;
+    meta.width = 1;
+    meta.height = 1;
+    meta.arraySize = 1;
+    meta.mipLevels = 1;
     meta.format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
     meta.dimension = TEX_DIMENSION_TEXTURE2D;
     ThrowIfFailed(img.Initialize2D(meta.format, meta.width, meta.height, 1, 1));
