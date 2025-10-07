@@ -386,3 +386,4 @@ packages/*
 *.vcxproj.user
 repo_tree.txt
 Directory.Build.props
+source.zip
