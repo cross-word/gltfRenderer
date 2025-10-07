@@ -219,7 +219,15 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
     }
 
     Material mat = { diffuseAlbedo, fresnelR0, shininess };
-    float4 directLight = ComputeLighting(gLights, mat, posW, bumpedNormal, toEye, float3(shadow, shadow, shadow));
+    //float4 directLight = ComputeLighting(gLights, mat, posW, bumpedNormal, toEye, float3(shadow, shadow, shadow));
+    float3 directRGB = 0;
+    [unroll]
+        for (int i = 0; i < NUM_LIGHTS; ++i)
+        {
+            float3 d = DirectBRDF_GGX(gLights[i], posW, bumpedNormal, toEye,
+                diffuseAlbedo.rgb, metal, roughness);
+            directRGB += d * float3(shadow, shadow, shadow);//only first shadow
+        }
 
     // sky hemisphere
     float3 hemiTop = float3(0.55, 0.62, 0.80); // skyblue scaling
@@ -266,10 +274,10 @@ float3 ShadeSurface(uint primitiveIndex, float2 barycentrics, inout RadiancePayl
     float3 emissive = matData.gEmissiveFactor;
     if (matData.gEmissiveIdx < NUM_TEXTURE) emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].SampleLevel(gsamLinearWrap, tex, 0).rgb;
 
-    float3 color = (ambientRGB + directLight.rgb + ibl + emissive * matData.gEmissiveStrength);
-    color = ToneMapACESFast(color, gExposure); // tone mapping
-
+    float3 color = ambientRGB + directRGB + ibl + emissive * matData.gEmissiveStrength;
+    color = ToneMapACESFast(color, gExposure);
     outAlpha = diffuseAlbedo.a;
+    color = pow(saturate(color), 1.0 / 2.2);
     return color;
 }
 

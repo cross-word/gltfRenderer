@@ -162,5 +162,6 @@ float4 PS(VertexOut pin) : SV_Target
 
     float3 color = ambientRGB + directRGB + ibl + emissive * matData.gEmissiveStrength;
     color = ToneMapACESFast(color, gExposure);
+    color = pow(saturate(color), 1.0 / 2.2);
     return float4(color, diffuseAlbedo.a);
 }
