@@ -122,6 +122,13 @@ struct MaterialConstants
     uint32_t ORMIndex = UINT32_MAX;
     uint32_t OcclusionIndex = UINT32_MAX;
     uint32_t EmissiveIndex = UINT32_MAX;
+
+    uint32_t BaseColorUV = 0;
+    uint32_t NormalUV = 0;
+    uint32_t ORMUV = 0;
+    uint32_t OcclusionUV = 0;
+    uint32_t EmissiveUV = 0;
+    uint32_t _pad[3];
 };
 static_assert(sizeof(MaterialConstants) % 16 == 0, "CB/SSBO align");
 

@@ -215,6 +215,7 @@ void DX12Device::InitShader()
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(Vertex, position), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(Vertex, normal),   D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, (UINT)offsetof(Vertex, texC),     D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT,       0, (UINT)offsetof(Vertex, texC1),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "TANGENT",  0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, (UINT)offsetof(Vertex, tangent), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
 }
@@ -364,7 +365,7 @@ void DX12Device::PrepareInitialResource()
 
 	// build material SRV
 	auto sanitizeIndex = [&](uint32_t idx)->uint32_t{
-			return (idx == UINT32_MAX || idx >= EngineConfig::MaxTextureCount) ? 0u : idx;
+			return (idx == UINT32_MAX || idx >= EngineConfig::MaxTextureCount) ? UINT32_MAX : idx;
 		};
 
 	m_DX12MaterialConstantManager = std::make_unique<DX12MaterialConstantManager>();
@@ -392,6 +393,11 @@ void DX12Device::PrepareInitialResource()
 		tmpMaterialConstant.ORMIndex = sanitizeIndex(m_sceneData.materials[i].ORMIndex);
 		tmpMaterialConstant.OcclusionIndex = sanitizeIndex(m_sceneData.materials[i].OcclusionIndex);
 		tmpMaterialConstant.EmissiveIndex = sanitizeIndex(m_sceneData.materials[i].EmissiveIndex);
+		tmpMaterialConstant.BaseColorUV = m_sceneData.materials[i].BaseColorUV;
+		tmpMaterialConstant.NormalUV = m_sceneData.materials[i].NormalUV;
+		tmpMaterialConstant.ORMUV = m_sceneData.materials[i].ORMUV;
+		tmpMaterialConstant.OcclusionUV = m_sceneData.materials[i].OcclusionUV;
+		tmpMaterialConstant.EmissiveUV = m_sceneData.materials[i].EmissiveUV;
 
 		tmpMaterial->matConstant = tmpMaterialConstant;
 
@@ -465,7 +471,7 @@ void DX12Device::PrepareInitialResource()
 		UINT matIndex = (m_sceneData.primitives[instance.primitive].material >= 0 ? m_sceneData.primitives[instance.primitive].material : 0);
 		renderItem.SetMaterialIndex(matIndex);
 		UINT tex = m_sceneData.materials[matIndex].BaseColorIndex; // baseColor
-		if (tex < 0 || tex >= EngineConfig::MaxTextureCount) tex = EngineConfig::MaxTextureCount - 1; // default white
+		if (tex >= EngineConfig::MaxTextureCount) tex = EngineConfig::MaxTextureCount - 1; // default white
 		renderItem.SetTextureIndex(tex);
 		m_renderItems.push_back(std::move(renderItem));
 	}

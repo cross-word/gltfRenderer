@@ -43,6 +43,13 @@ struct MaterialParam
     uint     gORMIdx;          // G=Roughness, B=Metallic
     uint     gOcclusionIndex;  // R=AO
     uint     gEmissiveIdx;
+
+    uint     DiffuseUV;     // baseColorTexture.texCoord
+    uint     NormalUV;      // normalTexture.texCoord
+    uint     ORMUV;         // metallicRoughnessTexture.texCoord
+    uint     OcclusionUV;   // occlusionTexture.texCoord
+    uint     EmissiveUV;    // emissiveTexture.texCoord
+    uint     _pad[3];
 };
 
 struct ObjectParam
@@ -189,3 +196,8 @@ float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
 }
 
 float3 SafeNormalize(float3 v) { return normalize(v + 1e-8); }
+
+float2 SelectUV(uint uvIndex, float2 uv0, float2 uv1)
+{
+    return (uvIndex == 1) ? uv1 : uv0; //tex0? tex1?
+}

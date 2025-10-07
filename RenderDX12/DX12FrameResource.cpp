@@ -64,7 +64,7 @@ void DX12FrameResource::UploadPassConstant(D3DCamera* d3dCamera, std::vector<Lig
 {
 	PassConstants passConst;
 	ZeroMemory(&passConst, sizeof(passConst));
-	passConst.AmbientLight = { 0.23f, 0.23f, 0.23f, 1.0f };
+	passConst.AmbientLight = { 0.03f, 0.03f, 0.03f, 1.0f };
 	Light sun{}; //sun light
 
 	float pi = 3.1415926535f;

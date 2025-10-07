@@ -10,6 +10,7 @@ struct VertexIn
     float3 PosL : POSITION;
     float3 NormalL : NORMAL;
     float2 TexC : TEXCOORD;
+    float2 TexC1 : TEXCOORD1;
     float4 TangentU : TANGENT; //xyz , w
 };
 
@@ -21,6 +22,7 @@ struct VertexOut
     float3 NormalW : NORMAL;
     float4 Tangent : TANGENT;
     float2 TexC : TEXCOORD;
+    float2 TexC1 : TEXCOORD1;
 };
 
 VertexOut VS(VertexIn vin)
@@ -46,7 +48,7 @@ VertexOut VS(VertexIn vin)
     // Output vertex attributes for interpolation across triangle.
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gObject[gObjectId].gTransform);
     vout.TexC = mul(texC, matData.MatTransform).xy;
-
+    vout.TexC1 = vin.TexC1;
     // Generate projective tex-coords to project shadow map onto scene.
     vout.ShadowPosH = mul(posW, gLightViewProj);
 
@@ -65,8 +67,14 @@ float4 PS(VertexOut pin) : SV_Target
 
     // Dynamically look up the texture in the array.
     // diffuse albedo in sRGB texture map.
-    diffuseAlbedo *= gTextureMapsSRGB[diffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
-    if (diffuseMapIndex >= NUM_TEXTURE) diffuseAlbedo = matData.DiffuseAlbedo;
+    float2 uvBase = SelectUV(matData.DiffuseUV, pin.TexC, pin.TexC1);
+    float4 base = (matData.DiffuseMapIndex < NUM_TEXTURE)
+        ? gTextureMapsSRGB[matData.DiffuseMapIndex].Sample(gsamLinearWrap, uvBase)
+        : float4(matData.DiffuseAlbedo.rgb, 1.0);
+
+    diffuseAlbedo.rgb = base.rgb * matData.DiffuseAlbedo.rgb;
+    float  alpha = base.a * matData.DiffuseAlbedo.a;
+
 #ifdef ALPHA_TEST
     // Discard pixel if texture alpha < 0.1.  We do this test as soon 
     // as possible in the shader so that we can potentially exit the
@@ -75,10 +83,12 @@ float4 PS(VertexOut pin) : SV_Target
 #endif
 
     // Interpolating normal can unnormalize it, so renormalize it.
-    pin.NormalW = normalize(pin.NormalW);
-    float4 normalMapSample = gTextureMapsLinear[normalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
-    float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample.rgb, pin.NormalW, pin.Tangent, matData.gNormalScale);
-    if (normalMapIndex >= NUM_TEXTURE) bumpedNormalW = pin.NormalW;
+    float2 uvN = SelectUV(matData.NormalUV, pin.TexC, pin.TexC1);
+    float3 nmap = (matData.NormalMapIndex < NUM_TEXTURE)
+        ? gTextureMapsLinear[matData.NormalMapIndex].Sample(gsamAnisotropicWrap, uvN).xyz * 2.0 - 1.0
+        : float3(0, 0, 1);
+    float3 bumpedNormalW = NormalSampleToWorldSpace(nmap, normalize(pin.NormalW), pin.Tangent, matData.gNormalScale);
+
     // Uncomment to turn off normal mapping.
     // bumpedNormalW = pin.NormalW;
 
@@ -86,15 +96,26 @@ float4 PS(VertexOut pin) : SV_Target
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
 
     //occlusion,roughness,metalic in linear texture map
-    float3 orm = (matData.gORMIdx < NUM_TEXTURE) ? gTextureMapsLinear[matData.gORMIdx].Sample(gsamAnisotropicWrap, pin.TexC).rgb : float3(1.0f, 1.0f, 0.0f);
+    float2 uvORM = SelectUV(matData.ORMUV, pin.TexC, pin.TexC1);
+    float3 orm = (matData.gORMIdx < NUM_TEXTURE)
+        ? gTextureMapsLinear[matData.gORMIdx].Sample(gsamAnisotropicWrap, uvORM).rgb
+        : float3(1.0, 1.0, 0.0);
 
     // if there is occlusion texture, use that
-    float aoTex = (matData.gOcclusionIndex < NUM_TEXTURE) ? gTextureMapsLinear[matData.gOcclusionIndex].Sample(gsamAnisotropicWrap, pin.TexC).r : orm.r;
-    float ambientOcclusion = lerp(1.0f, aoTex, saturate(matData.gOcclusionStrength));
+    float ao = 1.0;
+    if (matData.gOcclusionIndex < NUM_TEXTURE) {
+        float2 uvAO = SelectUV(matData.OcclusionUV, pin.TexC, pin.TexC1);
+        ao = gTextureMapsLinear[matData.gOcclusionIndex].Sample(gsamAnisotropicWrap, uvAO).r;
+    }
+    else {
+        ao = orm.r;
+    }
+    float ambientOcclusion = lerp(1.0, ao, saturate(matData.gOcclusionStrength));
 
-    roughness = saturate(roughness * orm.g);
-    roughness = max(roughness, 0.06f);
-    float metal = saturate(matData.gMetallic * orm.b);
+    roughness = max(0.06, saturate(orm.g));
+    float metal = saturate(orm.b);
+
+
 
     // Only the first light casts a shadow.
     float  s = ShadowFactor(pin.ShadowPosH, bumpedNormalW);
@@ -156,9 +177,13 @@ float4 PS(VertexOut pin) : SV_Target
     float3 specularIBL = prefiltered * (F * brdf.x + brdf.y);
     float3 ibl = ambientOcclusion * (kD * diffuseIBL + specularIBL) * gIBLStrength;
 
+    // emissive
     float3 emissive = matData.gEmissiveFactor;
-    if (matData.gEmissiveIdx < NUM_TEXTURE)
-        emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].Sample(gsamLinearWrap, pin.TexC).rgb;
+    if (matData.gEmissiveIdx < NUM_TEXTURE) {
+        float2 uvE = SelectUV(matData.EmissiveUV, pin.TexC, pin.TexC1);
+        emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].Sample(gsamLinearWrap, uvE).rgb;
+    }
+
 
     float3 color = ambientRGB + directRGB + ibl + emissive * matData.gEmissiveStrength;
     color = ToneMapACESFast(color, gExposure);

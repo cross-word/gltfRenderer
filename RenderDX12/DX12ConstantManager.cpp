@@ -99,7 +99,11 @@ void DX12MaterialConstantManager::PushMaterial(std::unique_ptr<Material>&& mater
     tmpMaterialConst.ORMIndex = material->matConstant.ORMIndex;
     tmpMaterialConst.OcclusionIndex = material->matConstant.OcclusionIndex;
     tmpMaterialConst.EmissiveIndex = material->matConstant.EmissiveIndex;
-
+    tmpMaterialConst.BaseColorUV = material->matConstant.BaseColorUV;
+    tmpMaterialConst.NormalUV = material->matConstant.NormalUV;
+    tmpMaterialConst.ORMUV = material->matConstant.ORMUV;
+    tmpMaterialConst.OcclusionUV = material->matConstant.OcclusionUV;
+    tmpMaterialConst.EmissiveUV = material->matConstant.EmissiveUV;
 
     m_materialConstant.emplace_back(tmpMaterialConst);
     m_materials.emplace_back(std::move(material));

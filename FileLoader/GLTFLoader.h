@@ -37,6 +37,12 @@ struct MaterialTex
     uint32_t ORMIndex = UINT32_MAX; // pbrMetallicRoughness.metallicRoughnessTexture.index + .texCoord
     uint32_t OcclusionIndex = UINT32_MAX;
     uint32_t EmissiveIndex = UINT32_MAX; // emissiveTexture.index
+
+    uint32_t BaseColorUV = 0;
+    uint32_t NormalUV = 0;
+    uint32_t ORMUV = 0;
+    uint32_t OcclusionUV = 0;
+    uint32_t EmissiveUV = 0;
 };
 
 struct PrimitiveMeshEx
