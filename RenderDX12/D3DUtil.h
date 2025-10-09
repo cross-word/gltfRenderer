@@ -128,7 +128,10 @@ struct MaterialConstants
     uint32_t ORMUV = 0;
     uint32_t OcclusionUV = 0;
     uint32_t EmissiveUV = 0;
-    uint32_t _pad[3];
+
+    float    AlphaCutoff;
+    uint32_t Flags;
+    uint32_t _pad[1];
 };
 static_assert(sizeof(MaterialConstants) % 16 == 0, "CB/SSBO align");
 

@@ -105,8 +105,16 @@ void DX12MaterialConstantManager::PushMaterial(std::unique_ptr<Material>&& mater
     tmpMaterialConst.OcclusionUV = material->matConstant.OcclusionUV;
     tmpMaterialConst.EmissiveUV = material->matConstant.EmissiveUV;
 
+    tmpMaterialConst.Flags = material->matConstant.Flags;
+    tmpMaterialConst.AlphaCutoff = material->matConstant.AlphaCutoff;
+
+    MaterialMetaData tmpMeta;
+    tmpMeta.Flags = material->matConstant.Flags;
+    tmpMeta.AlphaCutoff = material->matConstant.AlphaCutoff;
+
     m_materialConstant.emplace_back(tmpMaterialConst);
     m_materials.emplace_back(std::move(material));
+    m_matMeta.emplace_back(tmpMeta);
 }
 
 DX12ObjectConstantManager::DX12ObjectConstantManager()

@@ -171,6 +171,27 @@ void DX12Device::InitShader()
 		{ nullptr, nullptr }
 	};
 
+	D3D_SHADER_MACRO base[] =
+	{
+		{ "NUM_TEXTURE", poolMax.c_str() },
+		{ "NUM_LIGHTS", numLight.c_str()},
+		{ "NUM_DIR_LIGHTS", numDirLight.c_str()},
+		{ "NUM_POINT_LIGHTS", numPointLight.c_str()},
+		{ "NUM_SPOT_LIGHTS", numSpotLight.c_str()},
+		{ nullptr, nullptr }
+	};
+
+	D3D_SHADER_MACRO mask[] =
+	{
+		{ "NUM_TEXTURE", poolMax.c_str() },
+		{ "NUM_LIGHTS", numLight.c_str()},
+		{ "NUM_DIR_LIGHTS", numDirLight.c_str()},
+		{ "NUM_POINT_LIGHTS", numPointLight.c_str()},
+		{ "NUM_SPOT_LIGHTS", numSpotLight.c_str()},
+		{"ALPHA_TEST", "1"},
+		{ nullptr, nullptr }
+	};
+
 	hr = D3DCompileFromFile(EngineConfig::ShaderFilePath, macros, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VS", "vs_5_1", compileFlags, 0, &m_vertexShader, &errorBlob);
 	if (FAILED(hr))
 	{
@@ -181,6 +202,15 @@ void DX12Device::InitShader()
 		}
 	}
 	hr = D3DCompileFromFile(EngineConfig::ShaderFilePath, macros, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PS", "ps_5_1", compileFlags, 0, &m_pixelShader, &errorBlob);
+	if (FAILED(hr))
+	{
+		if (errorBlob)
+		{
+			OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+			errorBlob->Release();
+		}
+	}
+	hr = D3DCompileFromFile(EngineConfig::ShaderFilePath, mask, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PS", "ps_5_1", compileFlags, 0, &m_pixelShaderMask, &errorBlob);
 	if (FAILED(hr))
 	{
 		if (errorBlob)
@@ -224,6 +254,7 @@ void DX12Device::CreateDX12PSO()
 {
 	m_DX12PSO = std::make_unique<DX12PSO>();
 	//main render PSO
+	/*
 	m_DX12PSO->CreateMainPassPSO(
 		GetDevice(),
 		m_inputLayout,
@@ -232,6 +263,17 @@ void DX12Device::CreateDX12PSO()
 		m_DX12SwapChain->GetRenderTargetFormat(),
 		m_vertexShader.Get(),
 		m_pixelShader.Get(),
+		1,
+		EngineConfig::MsaaSampleCount);
+		*/
+	m_DX12PSO->CreateMainPassPSOs(
+		GetDevice(),
+		m_inputLayout,
+		m_DX12RootSignature->GetRasterizeRootSignature(),
+		m_DX12SwapChain->GetDepthStencilFormat(),
+		m_DX12SwapChain->GetRenderTargetFormat(),
+		m_vertexShader.Get(), m_pixelShader.Get(),
+		m_pixelShaderMask.Get(),
 		1,
 		EngineConfig::MsaaSampleCount);
 
@@ -353,14 +395,9 @@ void DX12Device::PrepareInitialResource()
 		tmpTexture->CreateDummyTextureResource(
 			m_device.Get(),
 			m_DX12CommandList.get(),
-			&cpuHandle);
-		auto tmpTexture2 = std::make_unique<DX12TextureManager>();
-		tmpTexture2->CreateDummyTextureResource(
-			m_device.Get(),
-			m_DX12CommandList.get(),
+			&cpuHandle,
 			&cpuHandle2);
 		m_DX12TextureManager.push_back(std::move(tmpTexture));
-		m_DX12TextureManager.push_back(std::move(tmpTexture2));
 	}
 
 	// build material SRV
@@ -376,7 +413,7 @@ void DX12Device::PrepareInitialResource()
 		tmpMaterial->Name = "mat_" + std::to_string(i);
 		tmpMaterial->MatCBIndex = i;
 
-		UINT baseIdx = m_sceneData.materials[i].BaseColorIndex >= 0 ? m_sceneData.materials[i].BaseColorIndex : 0;
+		UINT baseIdx = sanitizeIndex(m_sceneData.materials[i].BaseColorIndex);
 		tmpMaterial->DiffuseSrvHeapIndex = baseIdx;
 
 		MaterialConstants tmpMaterialConstant{};
@@ -398,6 +435,8 @@ void DX12Device::PrepareInitialResource()
 		tmpMaterialConstant.ORMUV = m_sceneData.materials[i].ORMUV;
 		tmpMaterialConstant.OcclusionUV = m_sceneData.materials[i].OcclusionUV;
 		tmpMaterialConstant.EmissiveUV = m_sceneData.materials[i].EmissiveUV;
+		tmpMaterialConstant.AlphaCutoff = m_sceneData.materials[i].AlphaCutoff;
+		tmpMaterialConstant.Flags = m_sceneData.materials[i].Flags;
 
 		tmpMaterial->matConstant = tmpMaterialConstant;
 
@@ -464,9 +503,15 @@ void DX12Device::PrepareInitialResource()
 	m_renderItems.reserve(m_sceneData.instances.size());
 	for (auto& instance : m_sceneData.instances)
 	{
+		XMFLOAT4X4 W = instance.world;
+		XMMATRIX   WT = XMMatrixTranspose(XMLoadFloat4x4(&W));
+		XMMATRIX   WInvT = XMMatrixTranspose(XMMatrixInverse(nullptr, WT));
+		XMFLOAT4X4 WTInvT;
+		XMStoreFloat4x4(&WTInvT, WInvT);
+
 		Render::RenderItem renderItem{};
-		renderItem.SetObjWorldMatrix(instance.world);
-		renderItem.SetObjWorldInverseTransposeMatrix((instance.world));
+		renderItem.SetObjWorldMatrix(W);
+		renderItem.SetObjWorldInverseTransposeMatrix(WTInvT);
 		renderItem.SetRenderGeometry(m_sceneGeometry[instance.primitive].get());
 		UINT matIndex = (m_sceneData.primitives[instance.primitive].material >= 0 ? m_sceneData.primitives[instance.primitive].material : 0);
 		renderItem.SetMaterialIndex(matIndex);

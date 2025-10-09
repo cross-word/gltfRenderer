@@ -49,7 +49,10 @@ struct MaterialParam
     uint     ORMUV;         // metallicRoughnessTexture.texCoord
     uint     OcclusionUV;   // occlusionTexture.texCoord
     uint     EmissiveUV;    // emissiveTexture.texCoord
-    uint     _pad[3];
+
+    uint  Flags;        // bit0: DoubleSided, bit1: AlphaMask, bit2: AlphaBlend
+    float AlphaCutoff;
+    uint     _pad;
 };
 
 struct ObjectParam
@@ -124,7 +127,8 @@ float3 NormalSampleToWorldSpace(float3 normalMapSample, float3 unitNormalW, floa
 {
     // [0,1] => [-1,1]
     float3 normalT = 2.0f * normalMapSample - 1.0f; //on tangent space
-
+    normalT.xy *= normalScale;
+    normalT = normalize(normalT);
     // Build orthonormal basis.
     float3 N = normalize(unitNormalW);
     float3 T = tangent.xyz;

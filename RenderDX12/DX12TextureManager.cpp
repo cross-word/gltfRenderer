@@ -181,7 +181,8 @@ void DX12TextureManager::CreateTextureFromDecodedData(
 void DX12TextureManager::CreateDummyTextureResource(
     ID3D12Device* device,
     DX12CommandList* dx12CommandList,
-    const D3D12_CPU_DESCRIPTOR_HANDLE* cpuHandle)
+    const D3D12_CPU_DESCRIPTOR_HANDLE* SRGBCpuHandle,
+    const D3D12_CPU_DESCRIPTOR_HANDLE* LinearCpuHandle)
 {
     TexMetadata meta;
     ScratchImage img;
@@ -200,9 +201,17 @@ void DX12TextureManager::CreateDummyTextureResource(
         &meta,
         &img);
 
+    DXGI_FORMAT base = meta.format;
+    DXGI_FORMAT fmtSRGB = (base == DXGI_FORMAT_B8G8R8A8_TYPELESS) ? DXGI_FORMAT_B8G8R8A8_UNORM_SRGB :
+        (base == DXGI_FORMAT_R8G8B8A8_TYPELESS) ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB :
+        MakeSRGB(base);
+    DXGI_FORMAT fmtLinear = (base == DXGI_FORMAT_B8G8R8A8_TYPELESS) ? DXGI_FORMAT_B8G8R8A8_UNORM :
+        (base == DXGI_FORMAT_R8G8B8A8_TYPELESS) ? DXGI_FORMAT_R8G8B8A8_UNORM :
+        MakeTypelessUNORM(base);
+
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Format = meta.format;
+    srvDesc.Format = fmtSRGB;
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = 1;
 
@@ -211,9 +220,24 @@ void DX12TextureManager::CreateDummyTextureResource(
         device,
         EViewType::EShaderResourceView,
         m_textureResource.get(),
-        *cpuHandle,
+        *SRGBCpuHandle,
         nullptr,
         &srvDesc);
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDescLinear{};
+    srvDescLinear.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDescLinear.Format = fmtLinear;
+    srvDescLinear.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDescLinear.Texture2D.MipLevels = 1;
+
+    //view
+    m_DX12LinearTextureView = std::make_unique<DX12View>(
+        device,
+        EViewType::EShaderResourceView,
+        m_textureResource.get(),
+        *LinearCpuHandle,
+        nullptr,
+        &srvDescLinear);
 
     m_textureName = "DummyWhite";
 }

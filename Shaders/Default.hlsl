@@ -55,7 +55,7 @@ VertexOut VS(VertexIn vin)
     return vout;
 }
 
-float4 PS(VertexOut pin) : SV_Target
+float4 PS(VertexOut pin, bool isFrontFace : SV_IsFrontFace) : SV_Target
 {
     // Fetch the material data.
     MaterialParam matData = gMaterialData[gMaterialIndex];
@@ -64,29 +64,26 @@ float4 PS(VertexOut pin) : SV_Target
     float  roughness = matData.Roughness;
     uint diffuseMapIndex = matData.DiffuseMapIndex;
     uint normalMapIndex = matData.NormalMapIndex;
-
+    //return float4((matData.Flags & 1u) ? 1 : 0, (matData.Flags & 2u) ? 1 : 0, (matData.Flags & 4u) ? 1 : 0, 1);
     // Dynamically look up the texture in the array.
     // diffuse albedo in sRGB texture map.
     float2 uvBase = SelectUV(matData.DiffuseUV, pin.TexC, pin.TexC1);
-    float4 base = (matData.DiffuseMapIndex < NUM_TEXTURE)
-        ? gTextureMapsSRGB[matData.DiffuseMapIndex].Sample(gsamLinearWrap, uvBase)
-        : float4(matData.DiffuseAlbedo.rgb, 1.0);
+    float4 base = (matData.DiffuseMapIndex < NUM_TEXTURE) ? gTextureMapsSRGB[matData.DiffuseMapIndex].Sample(gsamAnisotropicWrap, uvBase) : float4(matData.DiffuseAlbedo.rgb, 1.0);
 
     diffuseAlbedo.rgb = base.rgb * matData.DiffuseAlbedo.rgb;
-    float  alpha = base.a * matData.DiffuseAlbedo.a;
+    diffuseAlbedo.a = base.a * matData.DiffuseAlbedo.a;
 
-#ifdef ALPHA_TEST
-    // Discard pixel if texture alpha < 0.1.  We do this test as soon 
-    // as possible in the shader so that we can potentially exit the
-    // shader early, thereby skipping the rest of the shader code.
-    clip(diffuseAlbedo.a - 0.1f);
-#endif
+    // bit1: AlphaMask
+    if ((matData.Flags & 2u) != 0u) 
+    {
+        clip(diffuseAlbedo.a - matData.AlphaCutoff);
+    }
 
     // Interpolating normal can unnormalize it, so renormalize it.
     float2 uvN = SelectUV(matData.NormalUV, pin.TexC, pin.TexC1);
-    float3 nmap = (matData.NormalMapIndex < NUM_TEXTURE)
-        ? gTextureMapsLinear[matData.NormalMapIndex].Sample(gsamAnisotropicWrap, uvN).xyz * 2.0 - 1.0
-        : float3(0, 0, 1);
+    float3 nmap = (matData.NormalMapIndex < NUM_TEXTURE) ? gTextureMapsLinear[matData.NormalMapIndex].Sample(gsamAnisotropicWrap, uvN) : float3(0, 0, 1);
+    // two-sided normal mapping
+    if ((matData.Flags & 1u) != 0u && !isFrontFace && (matData.NormalMapIndex < NUM_TEXTURE)) nmap.xy = -nmap.xy;
     float3 bumpedNormalW = NormalSampleToWorldSpace(nmap, normalize(pin.NormalW), pin.Tangent, matData.gNormalScale);
 
     // Uncomment to turn off normal mapping.
@@ -97,33 +94,33 @@ float4 PS(VertexOut pin) : SV_Target
 
     //occlusion,roughness,metalic in linear texture map
     float2 uvORM = SelectUV(matData.ORMUV, pin.TexC, pin.TexC1);
-    float3 orm = (matData.gORMIdx < NUM_TEXTURE)
-        ? gTextureMapsLinear[matData.gORMIdx].Sample(gsamAnisotropicWrap, uvORM).rgb
-        : float3(1.0, 1.0, 0.0);
-
+    float3 orm = (matData.gORMIdx < NUM_TEXTURE) ? gTextureMapsLinear[matData.gORMIdx].Sample(gsamAnisotropicWrap, uvORM).rgb : float3(1.0, 1.0, 0.0);
     // if there is occlusion texture, use that
     float ao = 1.0;
-    if (matData.gOcclusionIndex < NUM_TEXTURE) {
+    float ambientOcclusion = 1.0f;
+    if (matData.gOcclusionIndex < NUM_TEXTURE)
+    {
         float2 uvAO = SelectUV(matData.OcclusionUV, pin.TexC, pin.TexC1);
         ao = gTextureMapsLinear[matData.gOcclusionIndex].Sample(gsamAnisotropicWrap, uvAO).r;
+        ambientOcclusion = lerp(1.0, ao, saturate(matData.gOcclusionStrength));
     }
-    else {
+    else
+    {
         ao = orm.r;
+        ambientOcclusion = 1.0f;
     }
-    float ambientOcclusion = lerp(1.0, ao, saturate(matData.gOcclusionStrength));
 
-    roughness = max(0.06, saturate(orm.g));
-    float metal = saturate(orm.b);
-
-
+    roughness = saturate(roughness * orm.g);
+    roughness = max(roughness, 0.45);
+    float metal = saturate(matData.gMetallic * orm.b);
 
     // Only the first light casts a shadow.
     float  s = ShadowFactor(pin.ShadowPosH, bumpedNormalW);
     float3 shadowFactor = float3(s, s, s);
 
     const float shininess = (1.0 - roughness) * (1.0 - roughness);
-    fresnelR0 = lerp(fresnelR0, diffuseAlbedo.rgb, metal);
-    diffuseAlbedo.rgb *= (1.0 - metal);
+    //fresnelR0 = lerp(fresnelR0, diffuseAlbedo.rgb, metal);
+    //diffuseAlbedo.rgb *= (1.0 - metal);
 
     Material mat = { diffuseAlbedo, fresnelR0, shininess };
     //float4 directLight = ComputeLighting(gLights, mat, pin.PosW, bumpedNormalW, toEyeW, shadowFactor);
@@ -137,8 +134,8 @@ float4 PS(VertexOut pin) : SV_Target
         }
 
     // sky hemisphere
-    float3 hemiTop = float3(0.55, 0.62, 0.80); // skyblue scaling
-    float3 hemiBot = float3(0.08, 0.07, 0.06);
+    float3 hemiTop = float3(0.32, 0.33, 0.35);
+    float3 hemiBot = float3(0.06, 0.06, 0.06);
     float up = saturate(dot(bumpedNormalW, float3(0, 1, 0)));
     float3 hemi = lerp(hemiBot, hemiTop, up);
 
@@ -155,7 +152,7 @@ float4 PS(VertexOut pin) : SV_Target
 
     // final ambient
     float3 ambientRGB = ambientOcclusion * (kD * gAmbientLight * hemi);
-    const float ambientShadowStrength = 0.7;
+    const float ambientShadowStrength = 0.4;
     ambientRGB *= lerp(1.0, s, ambientShadowStrength);
     float4 ambient = float4(ambientRGB, 0.0);
 
@@ -164,10 +161,14 @@ float4 PS(VertexOut pin) : SV_Target
     float3 diffuseIBL = irradiance * diffuseAlbedo.rgb;
 
     // specular IBL
-    float  maxMip = max(gSpecularMipCountMinus1, 0.0);
+    float maxMip = gSpecularMipCountMinus1;
     float3 R = SafeNormalize(reflect(-V, N));
-    float  mip = clamp(roughness * maxMip, 0.0, maxMip);
-    float3 prefiltered = gSpecularMap.SampleLevel(gsamLinearClamp, R, mip).rgb;
+    bool noSpecMips = (maxMip <= 0.0);
+    float lod = noSpecMips ? 0.0 : saturate(roughness) * maxMip;
+
+#define FORCE_NO_SPEC_IBL 0
+    float3 prefiltered = (noSpecMips || FORCE_NO_SPEC_IBL) ? 0.0 : gSpecularMap.SampleLevel(gsamLinearClamp, R, lod).rgb;
+
     float2 brdf = gBRDFLUT.Sample(gsamLinearClamp, float2(NdotV, roughness)).rg;
 
     // NaN guard
@@ -175,6 +176,8 @@ float4 PS(VertexOut pin) : SV_Target
     brdf = any(isnan(brdf)) ? 0 : brdf;
 
     float3 specularIBL = prefiltered * (F * brdf.x + brdf.y);
+    float specOcc = saturate(ambientOcclusion + NdotV - 1.0f);
+    specularIBL *= specOcc;
     float3 ibl = ambientOcclusion * (kD * diffuseIBL + specularIBL) * gIBLStrength;
 
     // emissive
@@ -187,6 +190,6 @@ float4 PS(VertexOut pin) : SV_Target
 
     float3 color = ambientRGB + directRGB + ibl + emissive * matData.gEmissiveStrength;
     color = ToneMapACESFast(color, gExposure);
-    color = pow(saturate(color), 1.0 / 2.2);
+    //color = pow(saturate(color), 1.0 / 2.2);
     return float4(color, diffuseAlbedo.a);
 }

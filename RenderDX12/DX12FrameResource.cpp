@@ -64,25 +64,25 @@ void DX12FrameResource::UploadPassConstant(D3DCamera* d3dCamera, std::vector<Lig
 {
 	PassConstants passConst;
 	ZeroMemory(&passConst, sizeof(passConst));
-	passConst.AmbientLight = { 0.03f, 0.03f, 0.03f, 1.0f };
+	passConst.AmbientLight = { 0.15f, 0.15f, 0.15f, 1.0f };
 	Light sun{}; //sun light
 
 	float pi = 3.1415926535f;
 	float theta = (2 * pi) / (12000.0f) * d3dTimer.GetTotalTime(); // 12s is one period
 
 	sun.Type = LIGHT_TYPE_DIRECTIONAL;
-	sun.Color = { 1,1,1 };
-	sun.Intensity = 0.5f;
-	//sun.Direction = { 0.0f, -cosf(theta), sinf(theta) };
-	sun.Direction = { 0.0f, -1.0f, 0.0f };
+	sun.Color = { 1.0,0.97,0.92 };
+	sun.Intensity = 0.1f;
+	//sun.Direction = { 0.1f, -cosf(theta), sinf(theta) };
+	sun.Direction = { 0.1f, -0.9f, 0.1f };
 	sun.Range = -1.0f;
 	sun.Position = { 0.0f, 0.0f, 0.0f };
 	sun.InnerCos = 0.0f;
 	sun.OuterCos = -1.0f;
 	passConst.Lights[0] = sun;
-
-	passConst.gExposure = 1.0f;
-	passConst.gIBLStrength = 0.15f;
+	 
+	passConst.gExposure = 0.9f;
+	passConst.gIBLStrength = 0.1f;
 	passConst.gSpecularMipCountMinus1 = specularMipMapCountMinus1;
 	//gather lights from .gltf
 	for (uint16_t i = 0; i < lights.size(); ++i)

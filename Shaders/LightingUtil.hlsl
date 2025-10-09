@@ -96,7 +96,7 @@ float3 DirectBRDF_GGX(
     if (Lgt.Type == 0)
     {// directional
         L = normalize(-Lgt.Direction);
-        radiance = Lgt.Color;
+        radiance = Lgt.Color * Lgt.Intensity;
     }
     else
     {// point/spot
@@ -106,7 +106,7 @@ float3 DirectBRDF_GGX(
         L = toL / max(dist, 1e-4);
         float atten = (Lgt.Range > 0.0f) ? saturate(1.0f - dist / Lgt.Range) : 1.0f;
         atten *= atten; // quad-ish
-        radiance = Lgt.Color * atten;
+        radiance = Lgt.Color * atten * Lgt.Intensity;
 
         if (Lgt.Type == 2) 
         {// spot

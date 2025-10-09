@@ -78,6 +78,8 @@ public:
 	bool IsDXRAvailable() const noexcept { return m_rtxSupported; }
 	inline DX12RayTracingManager* GetDX12RayTracingManager() const { return m_DX12RayTracingManager.get(); }
 	void ResizeRTOut();
+
+	const Material* GetMaterialCPU(UINT idx) const noexcept { return m_DX12MaterialConstantManager->GetMaterial(idx); }
 private:
 	void InitDX12CommandList(ID3D12CommandAllocator* commandAllocator);
 	void InitDX12SwapChain(HWND hWnd);
@@ -119,6 +121,7 @@ private:
 
 	ComPtr<ID3DBlob> m_vertexShader = nullptr;
 	ComPtr<ID3DBlob> m_pixelShader = nullptr;
+	ComPtr<ID3DBlob> m_pixelShaderMask = nullptr;
 	ComPtr<ID3DBlob> m_shadowVertexShader = nullptr;
 	ComPtr<ID3DBlob> m_shadowPixelShader = nullptr;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> m_inputLayout;

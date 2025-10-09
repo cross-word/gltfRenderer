@@ -44,6 +44,12 @@ public:
 	inline const MaterialConstants* GetMaterialConstantData() const noexcept { return m_materialConstant.data(); }
 
 private:
+	struct MaterialMetaData
+	{
+		uint32_t Flags;
+		float    AlphaCutoff;
+	};
+	std::vector<MaterialMetaData> m_matMeta;
 	std::vector<std::unique_ptr<Material>> m_materials;
 	std::vector<MaterialConstants> m_materialConstant;
 };
