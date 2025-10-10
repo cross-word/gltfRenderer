@@ -64,14 +64,14 @@ float4 PS(VertexOut pin, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float  roughness = matData.Roughness;
     uint diffuseMapIndex = matData.DiffuseMapIndex;
     uint normalMapIndex = matData.NormalMapIndex;
-    //return float4((matData.Flags & 1u) ? 1 : 0, (matData.Flags & 2u) ? 1 : 0, (matData.Flags & 4u) ? 1 : 0, 1);
+
     // Dynamically look up the texture in the array.
     // diffuse albedo in sRGB texture map.
     float2 uvBase = SelectUV(matData.DiffuseUV, pin.TexC, pin.TexC1);
     float4 base = (matData.DiffuseMapIndex < NUM_TEXTURE) ? gTextureMapsSRGB[matData.DiffuseMapIndex].Sample(gsamAnisotropicWrap, uvBase) : float4(matData.DiffuseAlbedo.rgb, 1.0);
 
-    diffuseAlbedo.rgb = base.rgb * matData.DiffuseAlbedo.rgb;
-    diffuseAlbedo.a = base.a * matData.DiffuseAlbedo.a;
+    diffuseAlbedo.rgb *= base.rgb;
+    diffuseAlbedo.a *= base.a;
 
     // bit1: AlphaMask
     if ((matData.Flags & 2u) != 0u) 
@@ -83,7 +83,7 @@ float4 PS(VertexOut pin, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float2 uvN = SelectUV(matData.NormalUV, pin.TexC, pin.TexC1);
     float3 nmap = (matData.NormalMapIndex < NUM_TEXTURE) ? gTextureMapsLinear[matData.NormalMapIndex].Sample(gsamAnisotropicWrap, uvN) : float3(0, 0, 1);
     // two-sided normal mapping
-    if ((matData.Flags & 1u) != 0u && !isFrontFace && (matData.NormalMapIndex < NUM_TEXTURE)) nmap.xy = -nmap.xy;
+    //if ((matData.Flags & 1u) != 0u && !isFrontFace && (matData.NormalMapIndex < NUM_TEXTURE)) nmap.xy = -nmap.xy;
     float3 bumpedNormalW = NormalSampleToWorldSpace(nmap, normalize(pin.NormalW), pin.Tangent, matData.gNormalScale);
 
     // Uncomment to turn off normal mapping.
@@ -96,17 +96,15 @@ float4 PS(VertexOut pin, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float2 uvORM = SelectUV(matData.ORMUV, pin.TexC, pin.TexC1);
     float3 orm = (matData.gORMIdx < NUM_TEXTURE) ? gTextureMapsLinear[matData.gORMIdx].Sample(gsamAnisotropicWrap, uvORM).rgb : float3(1.0, 1.0, 0.0);
     // if there is occlusion texture, use that
-    float ao = 1.0;
     float ambientOcclusion = 1.0f;
     if (matData.gOcclusionIndex < NUM_TEXTURE)
     {
         float2 uvAO = SelectUV(matData.OcclusionUV, pin.TexC, pin.TexC1);
-        ao = gTextureMapsLinear[matData.gOcclusionIndex].Sample(gsamAnisotropicWrap, uvAO).r;
-        ambientOcclusion = lerp(1.0, ao, saturate(matData.gOcclusionStrength));
+        ambientOcclusion = gTextureMapsLinear[matData.gOcclusionIndex].Sample(gsamAnisotropicWrap, uvAO).r;
+        ambientOcclusion = lerp(1.0, ambientOcclusion, saturate(matData.gOcclusionStrength));
     }
     else
     {
-        ao = orm.r;
         ambientOcclusion = 1.0f;
     }
 
@@ -116,30 +114,27 @@ float4 PS(VertexOut pin, bool isFrontFace : SV_IsFrontFace) : SV_Target
 
     // Only the first light casts a shadow.
     float  s = ShadowFactor(pin.ShadowPosH, bumpedNormalW);
-    float3 shadowFactor = float3(s, s, s);
+    float3 shadow = float3(s, s, s);
 
     const float shininess = (1.0 - roughness) * (1.0 - roughness);
-    //fresnelR0 = lerp(fresnelR0, diffuseAlbedo.rgb, metal);
-    //diffuseAlbedo.rgb *= (1.0 - metal);
-
-    Material mat = { diffuseAlbedo, fresnelR0, shininess };
-    //float4 directLight = ComputeLighting(gLights, mat, pin.PosW, bumpedNormalW, toEyeW, shadowFactor);
     float3 directRGB = 0;
     [unroll]
         for (int i = 0; i < NUM_LIGHTS; ++i)
         {
-            float3 d = DirectBRDF_GGX(gLights[i], pin.PosW, bumpedNormalW, toEyeW,
-                diffuseAlbedo.rgb, metal, roughness);
-            directRGB += d * shadowFactor;//only first shadow
+            float3 d = BRDF_GGX(gLights[i], pin.PosW, bumpedNormalW, toEyeW, diffuseAlbedo.rgb, metal, roughness);
+            directRGB += d * shadow; //only first shadow
         }
-
-    // sky hemisphere
+    // switch to phong shading
+    //Material mat = { diffuseAlbedo, fresnelR0, shininess };
+    //float4 directLight = ComputeLighting(gLights, mat, pin.PosW, bumpedNormalW, toEyeW, shadow);
+    //directRGB = directLight.rgb;
+    
+    // hemisphere
     float3 hemiTop = float3(0.32, 0.33, 0.35);
     float3 hemiBot = float3(0.06, 0.06, 0.06);
     float up = saturate(dot(bumpedNormalW, float3(0, 1, 0)));
     float3 hemi = lerp(hemiBot, hemiTop, up);
 
-    // IBL (diffuse + specular)
     float3 N = SafeNormalize(bumpedNormalW);
     float3 V = SafeNormalize(toEyeW);
     float  NdotV = saturate(dot(N, V));
@@ -149,12 +144,6 @@ float4 PS(VertexOut pin, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float3 F = FresnelSchlickRoughness(NdotV, F0, roughness);
     float3 kD = (1.0 - F) * (1.0 - metal);
     kD = max(kD, 0.02);
-
-    // final ambient
-    float3 ambientRGB = ambientOcclusion * (kD * gAmbientLight * hemi);
-    const float ambientShadowStrength = 0.4;
-    ambientRGB *= lerp(1.0, s, ambientShadowStrength);
-    float4 ambient = float4(ambientRGB, 0.0);
 
     // diffuse IBL
     float3 irradiance = gIrradianceMap.Sample(gsamLinearClamp, N).rgb;
@@ -168,7 +157,6 @@ float4 PS(VertexOut pin, bool isFrontFace : SV_IsFrontFace) : SV_Target
 
 #define FORCE_NO_SPEC_IBL 0
     float3 prefiltered = (noSpecMips || FORCE_NO_SPEC_IBL) ? 0.0 : gSpecularMap.SampleLevel(gsamLinearClamp, R, lod).rgb;
-
     float2 brdf = gBRDFLUT.Sample(gsamLinearClamp, float2(NdotV, roughness)).rg;
 
     // NaN guard
@@ -176,17 +164,22 @@ float4 PS(VertexOut pin, bool isFrontFace : SV_IsFrontFace) : SV_Target
     brdf = any(isnan(brdf)) ? 0 : brdf;
 
     float3 specularIBL = prefiltered * (F * brdf.x + brdf.y);
-    float specOcc = saturate(ambientOcclusion + NdotV - 1.0f);
-    specularIBL *= specOcc;
+    float specOcclusion = saturate(ambientOcclusion + NdotV - 1.0f);
+    specularIBL *= specOcclusion;
     float3 ibl = ambientOcclusion * (kD * diffuseIBL + specularIBL) * gIBLStrength;
+
+    // ambient
+    float3 ambientRGB = ambientOcclusion * (kD * gAmbientLight * hemi);
+    const float ambientShadowStrength = 0.4;
+    ambientRGB *= lerp(1.0, s, ambientShadowStrength);
 
     // emissive
     float3 emissive = matData.gEmissiveFactor;
-    if (matData.gEmissiveIdx < NUM_TEXTURE) {
+    if (matData.gEmissiveIdx < NUM_TEXTURE)
+    {
         float2 uvE = SelectUV(matData.EmissiveUV, pin.TexC, pin.TexC1);
         emissive *= gTextureMapsSRGB[matData.gEmissiveIdx].Sample(gsamLinearWrap, uvE).rgb;
     }
-
 
     float3 color = ambientRGB + directRGB + ibl + emissive * matData.gEmissiveStrength;
     color = ToneMapACESFast(color, gExposure);

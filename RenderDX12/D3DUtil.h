@@ -85,7 +85,7 @@ struct PassConstants // to slot b0 (per camera)
     float gExposure = 1.0f;
     float gIBLStrength = 1.0f;
     float gSpecularMipCountMinus1 = 0.0f; // specular cubemap mipCount-1
-    float _pad_ibl;
+    float _pad2;
 
     // Indices [0, NUM_DIR_LIGHTS) are directional lights;
     // indices [NUM_DIR_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHTS) are point lights;
@@ -93,6 +93,7 @@ struct PassConstants // to slot b0 (per camera)
     // are spot lights for a maximum of MaxLights per object.
     Light Lights[MaxLights];
 };
+static_assert(sizeof(PassConstants) % 16 == 0, "CB/SSBO align");
 
 struct ObjectConstants
 {
@@ -131,7 +132,7 @@ struct MaterialConstants
 
     float    AlphaCutoff;
     uint32_t Flags;
-    uint32_t _pad[1];
+    uint32_t _pad;
 };
 static_assert(sizeof(MaterialConstants) % 16 == 0, "CB/SSBO align");
 

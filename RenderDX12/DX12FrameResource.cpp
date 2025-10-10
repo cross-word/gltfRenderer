@@ -73,8 +73,8 @@ void DX12FrameResource::UploadPassConstant(D3DCamera* d3dCamera, std::vector<Lig
 	sun.Type = LIGHT_TYPE_DIRECTIONAL;
 	sun.Color = { 1.0,0.97,0.92 };
 	sun.Intensity = 0.1f;
-	//sun.Direction = { 0.1f, -cosf(theta), sinf(theta) };
-	sun.Direction = { 0.1f, -0.9f, 0.1f };
+	sun.Direction = { 0.1f, -cosf(theta), sinf(theta) };
+	//sun.Direction = { 0.1f, -0.9f, 0.1f };
 	sun.Range = -1.0f;
 	sun.Position = { 0.0f, 0.0f, 0.0f };
 	sun.InnerCos = 0.0f;
@@ -82,7 +82,7 @@ void DX12FrameResource::UploadPassConstant(D3DCamera* d3dCamera, std::vector<Lig
 	passConst.Lights[0] = sun;
 	 
 	passConst.gExposure = 0.9f;
-	passConst.gIBLStrength = 0.1f;
+	passConst.gIBLStrength = 0.4f;
 	passConst.gSpecularMipCountMinus1 = specularMipMapCountMinus1;
 	//gather lights from .gltf
 	for (uint16_t i = 0; i < lights.size(); ++i)
@@ -141,7 +141,8 @@ void DX12FrameResource::UploadObjectConstant(
 	};
 	std::vector<PendingObject> dirtyObjects;
 
-	for (int i = 0; i < renderItems.size(); ++i) {
+	for (int i = 0; i < renderItems.size(); ++i)
+	{
 		if (!renderItems[i].IsObjectDirty())
 			continue;
 

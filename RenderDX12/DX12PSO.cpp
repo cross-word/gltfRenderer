@@ -161,10 +161,7 @@ void DX12PSO::CreateShadowPassPSO(
 	psoDesc.SampleDesc.Quality = 0;
 	psoDesc.RasterizerState.MultisampleEnable = (sampleCount > 1);
 
-	// allocate PSO to vector
-	ComPtr<ID3D12PipelineState> tmpPSO;
-	ThrowIfFailed(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&tmpPSO)));
-	m_pipelineStates.push_back(tmpPSO);
+	ThrowIfFailed(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_shadowPipelineStates)));
 
 	return;
 }

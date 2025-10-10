@@ -108,7 +108,7 @@ void DX12MaterialConstantManager::PushMaterial(std::unique_ptr<Material>&& mater
     tmpMaterialConst.Flags = material->matConstant.Flags;
     tmpMaterialConst.AlphaCutoff = material->matConstant.AlphaCutoff;
 
-    MaterialMetaData tmpMeta;
+    MaterialMetaData tmpMeta; //save for choosing PSO during drawing
     tmpMeta.Flags = material->matConstant.Flags;
     tmpMeta.AlphaCutoff = material->matConstant.AlphaCutoff;
 

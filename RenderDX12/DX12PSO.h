@@ -27,7 +27,6 @@ public:
 		Blend_NoCull = 5,
 		_Count
 	};
-	ID3D12PipelineState* GetPipelineState(MainPSO k);
 
 	void CreateMainPassPSO(
 		ID3D12Device* device,
@@ -62,6 +61,9 @@ public:
 		UINT sampleCount);
 	ID3D12PipelineState* GetPipelineState();
 	ID3D12PipelineState* GetPipelineState(int index);
+	ID3D12PipelineState* GetPipelineState(MainPSO k);
+	ID3D12PipelineState* GetShadowPipelineState() { return m_shadowPipelineStates.Get(); }
 private:
 	std::vector<ComPtr<ID3D12PipelineState>> m_pipelineStates;
+	ComPtr<ID3D12PipelineState> m_shadowPipelineStates;
 };

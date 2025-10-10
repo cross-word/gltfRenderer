@@ -66,8 +66,12 @@ DX12TextureManager::DecodedTextureData DX12TextureManager::DecodeTextureFromFile
     {
         ScratchImage mip;
         ThrowIfFailed(GenerateMipMaps(
-            decoded.image.GetImages(), decoded.image.GetImageCount(), decoded.image.GetMetadata(),
-            TEX_FILTER_DEFAULT, 0, mip));
+            decoded.image.GetImages(),
+            decoded.image.GetImageCount(),
+            decoded.image.GetMetadata(),
+            TEX_FILTER_DEFAULT,
+            0,
+            mip));
         decoded.image = std::move(mip);
         decoded.metadata = decoded.image.GetMetadata();
     }

@@ -27,8 +27,7 @@ void DX12Device::Initialize(HWND hWnd, const std::wstring& sceneFilePath)
 	HRESULT HardwareResult = D3D12CreateDevice(
 		nullptr,
 		D3D_FEATURE_LEVEL_12_0,
-		IID_PPV_ARGS(&m_device)
-	);
+		IID_PPV_ARGS(&m_device));
 
 	if (FAILED(HardwareResult))
 	{
@@ -162,16 +161,6 @@ void DX12Device::InitShader()
 	std::string numPointLight = std::to_string(m_sceneData.numPointLight);
 	std::string numSpotLight = std::to_string(m_sceneData.numSpotLight);
 	D3D_SHADER_MACRO macros[] =
-	{
-		{ "NUM_TEXTURE", poolMax.c_str() },
-		{ "NUM_LIGHTS", numLight.c_str()},
-		{ "NUM_DIR_LIGHTS", numDirLight.c_str()},
-		{ "NUM_POINT_LIGHTS", numPointLight.c_str()},
-		{ "NUM_SPOT_LIGHTS", numSpotLight.c_str()},
-		{ nullptr, nullptr }
-	};
-
-	D3D_SHADER_MACRO base[] =
 	{
 		{ "NUM_TEXTURE", poolMax.c_str() },
 		{ "NUM_LIGHTS", numLight.c_str()},
