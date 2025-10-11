@@ -39,9 +39,9 @@ struct Attributes
     float2 barycentrics;
 };
 
-static const uint MAX_RAY_DEPTH = 1;
+static const uint MAX_RAY_DEPTH = 2;
 #ifndef NUM_RAY_SAMPLES
-#define NUM_RAY_SAMPLES 4
+#define NUM_RAY_SAMPLES 8
 #endif
 #ifndef TEMPORAL_ALPHA
 #define TEMPORAL_ALPHA 0.1f
