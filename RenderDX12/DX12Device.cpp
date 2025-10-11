@@ -651,7 +651,7 @@ void DX12Device::InitDXRayTracing()
 
 	// BLAS/TLAS
 	m_DX12RayTracingManager->InitBLAS(m_device.Get(), m_DX12CommandList.get(), m_sceneGeometry);
-	m_DX12RayTracingManager->InitTLAS(m_device.Get(), m_DX12CommandList->GetCommandList(), m_sceneGeometry, m_renderItems);
+	m_DX12RayTracingManager->InitTLAS(m_device.Get(), m_DX12CommandList.get(), m_sceneGeometry, m_renderItems);
 
 	// SRV writing
 	m_DX12RayTracingManager->BuildRayGeometryBuffers(

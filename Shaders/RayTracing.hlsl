@@ -375,11 +375,10 @@ void ShadowMiss(inout ShadowPayload payload)
 [shader("anyhit")]
 void AlphaAnyHit(inout RadiancePayload payload, Attributes attr)
 {
-    return;
-
-    //TODO: NEED TO IMPLEMENT ALPHA BLENDING
     float a = SampleAlpha(PrimitiveIndex(), attr.barycentrics);
-    if (a < TEMPORAL_ALPHA) {
+
+    if (a < 0.4f)
+    {
         IgnoreHit();
         return;
     }
