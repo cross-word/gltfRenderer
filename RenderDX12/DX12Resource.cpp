@@ -24,6 +24,18 @@ void DX12Resource::TransitionState(DX12CommandList* dx12CommandList, D3D12_RESOU
 	return;
 }
 
+void DX12Resource::TransitionState(DX12CommandList* dx12CommandList, D3D12_RESOURCE_STATES newState, UINT subResources)
+{
+	assert(m_resource);
+	if (m_currentState == newState) return;
+
+	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_resource.Get(), m_currentState, newState, subResources);
+	dx12CommandList->PushStateTransition(barrier);
+	m_currentState = newState;
+
+	return;
+}
+
 void DX12ResourceBuffer::CreateResource(
 	ID3D12Device* device,
 	UINT64 byteSize,
@@ -159,10 +171,10 @@ void DX12ResourceBuffer::CreateResourceAndUploadBuffer(
 		&hp,
 		D3D12_HEAP_FLAG_NONE,
 		&desc,
-		D3D12_RESOURCE_STATE_COMMON,
+		D3D12_RESOURCE_STATE_COPY_DEST,
 		nullptr,
 		IID_PPV_ARGS(&m_resource)));
-	m_currentState = D3D12_RESOURCE_STATE_COMMON;
+	m_currentState = D3D12_RESOURCE_STATE_COPY_DEST;
 
 	CD3DX12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 	CD3DX12_RESOURCE_DESC descBuffer = CD3DX12_RESOURCE_DESC::Buffer(byteSize);
@@ -327,7 +339,7 @@ void DX12ResourceTexture::CreateTexture(
 		IID_PPV_ARGS(m_uploadBuffer.GetAddressOf())));
 
 	UpdateSubresources(dx12CommandList->GetCommandList(), m_resource.Get(), m_uploadBuffer.Get(), 0, 0, resourceDataSize, subResourceData.data());
-	TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+	TransitionState(dx12CommandList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
 	dx12CommandList->RecordResourceStateTransition();
 }
 

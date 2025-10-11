@@ -52,7 +52,8 @@ public:
     void CreateDummyTextureResource(
         ID3D12Device* device,
         DX12CommandList* dx12CommandList,
-        const D3D12_CPU_DESCRIPTOR_HANDLE* cpuHandle);
+        const D3D12_CPU_DESCRIPTOR_HANDLE* SRGBCpuHandle,
+        const D3D12_CPU_DESCRIPTOR_HANDLE* LinearCpuHandle);
 
     inline DX12ResourceTexture* GetTextureResource() const noexcept { return m_textureResource.get(); }
     inline DX12View* GetDX12SRGBTextureView() const noexcept { return m_DX12SRGBTextureView.get(); }

@@ -27,8 +27,7 @@ void DX12Device::Initialize(HWND hWnd, const std::wstring& sceneFilePath)
 	HRESULT HardwareResult = D3D12CreateDevice(
 		nullptr,
 		D3D_FEATURE_LEVEL_12_0,
-		IID_PPV_ARGS(&m_device)
-	);
+		IID_PPV_ARGS(&m_device));
 
 	if (FAILED(HardwareResult))
 	{
@@ -121,7 +120,8 @@ void DX12Device::InitDX12SRVHeap()
 		+ 1
 		+ 1
 		+ 1
-		+ 11, // 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors + 1 shadow map + 11 raytracing var
+		+ 3
+		+ 11, // 1 constant * 3 frames + 2 * texture amount + 1 material vectors + 1 world vectors + 1 shadow map + 3 IBL + 11 raytracing var
 		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
 		D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
 }
@@ -170,6 +170,17 @@ void DX12Device::InitShader()
 		{ nullptr, nullptr }
 	};
 
+	D3D_SHADER_MACRO mask[] =
+	{
+		{ "NUM_TEXTURE", poolMax.c_str() },
+		{ "NUM_LIGHTS", numLight.c_str()},
+		{ "NUM_DIR_LIGHTS", numDirLight.c_str()},
+		{ "NUM_POINT_LIGHTS", numPointLight.c_str()},
+		{ "NUM_SPOT_LIGHTS", numSpotLight.c_str()},
+		{"ALPHA_TEST", "1"},
+		{ nullptr, nullptr }
+	};
+
 	hr = D3DCompileFromFile(EngineConfig::ShaderFilePath, macros, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VS", "vs_5_1", compileFlags, 0, &m_vertexShader, &errorBlob);
 	if (FAILED(hr))
 	{
@@ -180,6 +191,15 @@ void DX12Device::InitShader()
 		}
 	}
 	hr = D3DCompileFromFile(EngineConfig::ShaderFilePath, macros, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PS", "ps_5_1", compileFlags, 0, &m_pixelShader, &errorBlob);
+	if (FAILED(hr))
+	{
+		if (errorBlob)
+		{
+			OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+			errorBlob->Release();
+		}
+	}
+	hr = D3DCompileFromFile(EngineConfig::ShaderFilePath, mask, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PS", "ps_5_1", compileFlags, 0, &m_pixelShaderMask, &errorBlob);
 	if (FAILED(hr))
 	{
 		if (errorBlob)
@@ -214,6 +234,7 @@ void DX12Device::InitShader()
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(Vertex, position), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(Vertex, normal),   D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, (UINT)offsetof(Vertex, texC),     D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT,       0, (UINT)offsetof(Vertex, texC1),    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "TANGENT",  0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, (UINT)offsetof(Vertex, tangent), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
 }
@@ -222,6 +243,7 @@ void DX12Device::CreateDX12PSO()
 {
 	m_DX12PSO = std::make_unique<DX12PSO>();
 	//main render PSO
+	/*
 	m_DX12PSO->CreateMainPassPSO(
 		GetDevice(),
 		m_inputLayout,
@@ -230,6 +252,17 @@ void DX12Device::CreateDX12PSO()
 		m_DX12SwapChain->GetRenderTargetFormat(),
 		m_vertexShader.Get(),
 		m_pixelShader.Get(),
+		1,
+		EngineConfig::MsaaSampleCount);
+		*/
+	m_DX12PSO->CreateMainPassPSOs(
+		GetDevice(),
+		m_inputLayout,
+		m_DX12RootSignature->GetRasterizeRootSignature(),
+		m_DX12SwapChain->GetDepthStencilFormat(),
+		m_DX12SwapChain->GetRenderTargetFormat(),
+		m_vertexShader.Get(), m_pixelShader.Get(),
+		m_pixelShaderMask.Get(),
 		1,
 		EngineConfig::MsaaSampleCount);
 
@@ -351,19 +384,14 @@ void DX12Device::PrepareInitialResource()
 		tmpTexture->CreateDummyTextureResource(
 			m_device.Get(),
 			m_DX12CommandList.get(),
-			&cpuHandle);
-		auto tmpTexture2 = std::make_unique<DX12TextureManager>();
-		tmpTexture2->CreateDummyTextureResource(
-			m_device.Get(),
-			m_DX12CommandList.get(),
+			&cpuHandle,
 			&cpuHandle2);
 		m_DX12TextureManager.push_back(std::move(tmpTexture));
-		m_DX12TextureManager.push_back(std::move(tmpTexture2));
 	}
 
 	// build material SRV
 	auto sanitizeIndex = [&](uint32_t idx)->uint32_t{
-			return (idx == UINT32_MAX || idx >= EngineConfig::MaxTextureCount) ? 0u : idx;
+			return (idx == UINT32_MAX || idx >= EngineConfig::MaxTextureCount) ? UINT32_MAX : idx;
 		};
 
 	m_DX12MaterialConstantManager = std::make_unique<DX12MaterialConstantManager>();
@@ -374,7 +402,7 @@ void DX12Device::PrepareInitialResource()
 		tmpMaterial->Name = "mat_" + std::to_string(i);
 		tmpMaterial->MatCBIndex = i;
 
-		UINT baseIdx = m_sceneData.materials[i].BaseColorIndex >= 0 ? m_sceneData.materials[i].BaseColorIndex : 0;
+		UINT baseIdx = sanitizeIndex(m_sceneData.materials[i].BaseColorIndex);
 		tmpMaterial->DiffuseSrvHeapIndex = baseIdx;
 
 		MaterialConstants tmpMaterialConstant{};
@@ -391,6 +419,13 @@ void DX12Device::PrepareInitialResource()
 		tmpMaterialConstant.ORMIndex = sanitizeIndex(m_sceneData.materials[i].ORMIndex);
 		tmpMaterialConstant.OcclusionIndex = sanitizeIndex(m_sceneData.materials[i].OcclusionIndex);
 		tmpMaterialConstant.EmissiveIndex = sanitizeIndex(m_sceneData.materials[i].EmissiveIndex);
+		tmpMaterialConstant.BaseColorUV = m_sceneData.materials[i].BaseColorUV;
+		tmpMaterialConstant.NormalUV = m_sceneData.materials[i].NormalUV;
+		tmpMaterialConstant.ORMUV = m_sceneData.materials[i].ORMUV;
+		tmpMaterialConstant.OcclusionUV = m_sceneData.materials[i].OcclusionUV;
+		tmpMaterialConstant.EmissiveUV = m_sceneData.materials[i].EmissiveUV;
+		tmpMaterialConstant.AlphaCutoff = m_sceneData.materials[i].AlphaCutoff;
+		tmpMaterialConstant.Flags = m_sceneData.materials[i].Flags;
 
 		tmpMaterial->matConstant = tmpMaterialConstant;
 
@@ -457,14 +492,20 @@ void DX12Device::PrepareInitialResource()
 	m_renderItems.reserve(m_sceneData.instances.size());
 	for (auto& instance : m_sceneData.instances)
 	{
+		XMFLOAT4X4 W = instance.world;
+		XMMATRIX   WT = XMMatrixTranspose(XMLoadFloat4x4(&W));
+		XMMATRIX   WInvT = XMMatrixTranspose(XMMatrixInverse(nullptr, WT));
+		XMFLOAT4X4 WTInvT;
+		XMStoreFloat4x4(&WTInvT, WInvT);
+
 		Render::RenderItem renderItem{};
-		renderItem.SetObjWorldMatrix(instance.world);
-		renderItem.SetObjWorldInverseTransposeMatrix((instance.world));
+		renderItem.SetObjWorldMatrix(W);
+		renderItem.SetObjWorldInverseTransposeMatrix(WTInvT);
 		renderItem.SetRenderGeometry(m_sceneGeometry[instance.primitive].get());
 		UINT matIndex = (m_sceneData.primitives[instance.primitive].material >= 0 ? m_sceneData.primitives[instance.primitive].material : 0);
 		renderItem.SetMaterialIndex(matIndex);
 		UINT tex = m_sceneData.materials[matIndex].BaseColorIndex; // baseColor
-		if (tex < 0 || tex >= EngineConfig::MaxTextureCount) tex = 0; // default white
+		if (tex >= EngineConfig::MaxTextureCount) tex = EngineConfig::MaxTextureCount - 1; // default white
 		renderItem.SetTextureIndex(tex);
 		m_renderItems.push_back(std::move(renderItem));
 	}
@@ -477,6 +518,35 @@ void DX12Device::PrepareInitialResource()
 	//ray tracing prepare
 	InitDXRayTracing();
 
+	auto irrHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetIrradiance).cpuDescHandle;
+	auto specHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetSpecular).cpuDescHandle;
+	auto BRDFHandle = m_DX12SRVHeap->Offset(SRVOffset::SRVOffsetBRDF).cpuDescHandle;
+
+	m_iblIrr = std::make_unique<DX12DDSManager>();
+	m_iblSpec = std::make_unique<DX12DDSManager>();
+	m_brdf = std::make_unique<DX12DDSManager>();
+	
+	m_iblIrr->LoadAndCreateDDSCubeResource(
+		m_device.Get(),
+		m_DX12CommandList.get(),
+		&irrHandle,
+		EngineConfig::IrradianceFilePath,
+		"ibl_irradiance");
+	m_iblSpec->LoadAndCreateDDSCubeResource(
+		m_device.Get(),
+		m_DX12CommandList.get(),
+		&specHandle,
+		EngineConfig::SpecularFilePath,
+		"ibl_specular");
+	m_brdf->LoadAndCreateDDSResource(
+		m_device.Get(),
+		m_DX12CommandList.get(),
+		&BRDFHandle,
+		EngineConfig::BRDFFilePath,
+		"ibl_brdf_lut");
+
+	m_specMipMapCount = float(m_iblSpec->GetDDSResource()->GetResource()->GetDesc().MipLevels - 1);
+	
 	//wait for upload and reset upload buffers
 	m_DX12CommandList->SubmitAndWait();
 	m_DX12MaterialConstantManager->GetMaterialResource()->ResetUploadBuffer();
@@ -517,7 +587,7 @@ void DX12Device::UpdateFrameResource(D3DTimer d3dTimer)
 {
 	// Has the GPU finished processing the commands of the current frame resource?
 	// If not, wait until the GPU has completed commands up to this fence point.
-	m_DX12FrameResource[GetCurrentBackBufferIndex()]->UploadPassConstant(m_camera.get(), m_sceneData.lights, d3dTimer);
+	m_DX12FrameResource[GetCurrentBackBufferIndex()]->UploadPassConstant(m_camera.get(), m_sceneData.lights, d3dTimer, m_specMipMapCount);
 	m_DX12FrameResource[GetCurrentBackBufferIndex()]->UploadObjectConstant(m_device.Get(), m_DX12CommandList.get(), m_renderItems, m_DX12ObjectConstantManager.get());
 }
 
@@ -581,7 +651,7 @@ void DX12Device::InitDXRayTracing()
 
 	// BLAS/TLAS
 	m_DX12RayTracingManager->InitBLAS(m_device.Get(), m_DX12CommandList.get(), m_sceneGeometry);
-	m_DX12RayTracingManager->InitTLAS(m_device.Get(), m_DX12CommandList->GetCommandList(), m_sceneGeometry, m_renderItems);
+	m_DX12RayTracingManager->InitTLAS(m_device.Get(), m_DX12CommandList.get(), m_sceneGeometry, m_renderItems);
 
 	// SRV writing
 	m_DX12RayTracingManager->BuildRayGeometryBuffers(

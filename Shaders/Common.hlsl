@@ -43,6 +43,16 @@ struct MaterialParam
     uint     gORMIdx;          // G=Roughness, B=Metallic
     uint     gOcclusionIndex;  // R=AO
     uint     gEmissiveIdx;
+
+    uint     DiffuseUV;     // baseColorTexture.texCoord
+    uint     NormalUV;      // normalTexture.texCoord
+    uint     ORMUV;         // metallicRoughnessTexture.texCoord
+    uint     OcclusionUV;   // occlusionTexture.texCoord
+    uint     EmissiveUV;    // emissiveTexture.texCoord
+
+    uint  Flags;        // bit0: DoubleSided, bit1: AlphaMask, bit2: AlphaBlend
+    float AlphaCutoff;
+    uint     _pad;
 };
 
 struct ObjectParam
@@ -57,6 +67,9 @@ Texture2D    gTextureMapsLinear[NUM_TEXTURE] : register(t0, space2);
 StructuredBuffer<MaterialParam> gMaterialData : register(t0, space1);
 StructuredBuffer<ObjectParam>   gObject    : register(t1, space1);
 Texture2D gShadowMap : register(t2, space1);
+TextureCube gIrradianceMap : register(t3, space1);
+TextureCube gSpecularMap : register(t4, space1);
+Texture2D   gBRDFLUT : register(t5, space1);
 
 SamplerState gsamPointWrap : register(s0);
 SamplerState gsamPointClamp : register(s1);
@@ -88,6 +101,11 @@ cbuffer cbPass : register(b0)
     float4x4 gLightViewProj;
     float2 gShadowTexelSize; float2 _padShadow;
 
+    float gExposure;
+    float gIBLStrength;
+    float gSpecularMipCountMinus1;
+    float _pad_ibl;
+
     // Indices [0, NUM_DIR_LIGHTS) are directional lights;
     // indices [NUM_DIR_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHTS) are point lights;
     // indices [NUM_DIR_LIGHTS+NUM_POINT_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHT+NUM_SPOT_LIGHTS)
@@ -109,7 +127,8 @@ float3 NormalSampleToWorldSpace(float3 normalMapSample, float3 unitNormalW, floa
 {
     // [0,1] => [-1,1]
     float3 normalT = 2.0f * normalMapSample - 1.0f; //on tangent space
-
+    normalT.xy *= normalScale;
+    normalT = normalize(normalT);
     // Build orthonormal basis.
     float3 N = normalize(unitNormalW);
     float3 T = tangent.xyz;
@@ -164,4 +183,24 @@ float ShadowFactor(float4 shadowPosH, float3 N)
         lit += gShadowMap.SampleCmpLevelZero(gsamShadow, uv + poisson[i] * radius * texel, proj.z - bias).r;
     }
     return lit * (1.0 / 16.0); // [0,1]
+}
+
+//simple tonemap
+float3 ToneMapACESFast(float3 x, float exposure)
+{
+    x *= max(exposure, 0.0001);
+    // ACES approximation
+    return saturate((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14));
+}
+
+float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
+{
+    return F0 + (max(float3(1.0 - roughness, 1.0 - roughness, 1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+float3 SafeNormalize(float3 v) { return normalize(v + 1e-8); }
+
+float2 SelectUV(uint uvIndex, float2 uv0, float2 uv1)
+{
+    return (uvIndex == 1) ? uv1 : uv0; //tex0? tex1?
 }

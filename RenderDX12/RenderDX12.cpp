@@ -165,9 +165,12 @@ void RenderDX12::AllocateWorkerDrawingCommand(uint32_t i)
 			m_DX12Device.GetWorkerShadowDX12CommandList(i) :
 			m_DX12Device.GetWorkerDX12CommandList(i);
 
-		workerCommandList->ResetList(
-			m_DX12Device.GetDX12PSO()->GetPipelineState(job.passType == WorkerJobDrawing::PassType::Shadow ? 1 : 0),
-			m_DX12Device.GetFrameResource(currBackBufferIndex)->GetWorkerCommandAllocator(i));
+		ID3D12PipelineState* initPSO =
+			(job.passType == WorkerJobDrawing::PassType::Shadow) ? 
+			m_DX12Device.GetDX12PSO()->GetShadowPipelineState() : 
+			m_DX12Device.GetDX12PSO()->GetPipelineState(DX12PSO::MainPSO::Opaque_BackCull);
+
+		workerCommandList->ResetList(initPSO, m_DX12Device.GetFrameResource(currBackBufferIndex)->GetWorkerCommandAllocator(i));
 
 		if (job.passType == WorkerJobDrawing::PassType::Shadow)
 		{
@@ -184,11 +187,13 @@ void RenderDX12::AllocateWorkerDrawingCommand(uint32_t i)
 		commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 		commandList->SetGraphicsRootDescriptorTable(0, job.cbvSlice.gpuDescHandle);
 		commandList->SetGraphicsRootDescriptorTable(1, job.texSlice.gpuDescHandle);
-		commandList->SetGraphicsRootDescriptorTable(2, job.matSlice.gpuDescHandle);
+		commandList->SetGraphicsRootDescriptorTable(2, job.matSlice.gpuDescHandle);		
+		commandList->SetGraphicsRootDescriptorTable(5, job.iblSlice.gpuDescHandle);
 		if (job.passType == WorkerJobDrawing::PassType::Main)
 		{
 			commandList->SetGraphicsRootDescriptorTable(3, job.shadowSlice.gpuDescHandle);
 		}
+		DX12PSO::MainPSO curr = DX12PSO::MainPSO::Opaque_BackCull;
 
 		if (beginIndex < endIndex)
 		{
@@ -204,6 +209,27 @@ void RenderDX12::AllocateWorkerDrawingCommand(uint32_t i)
 #endif
 			for (uint32_t renderItemIndex = beginIndex; renderItemIndex < endIndex; renderItemIndex++)
 			{
+				if (job.passType == WorkerJobDrawing::PassType::Main)
+				{
+					UINT matIndex = m_DX12Device.GetDX12RenderItem(renderItemIndex).GetMaterialIndex();
+					UINT texIndex = m_DX12Device.GetDX12RenderItem(renderItemIndex).GetTextureIndex();
+					UINT objIndex = m_DX12Device.GetDX12RenderItem(renderItemIndex).GetObjectConstantIndex();
+
+					// read flag from material
+					const Material* mtl = m_DX12Device.GetMaterialCPU(matIndex);
+					const uint32_t flags = mtl ? mtl->matConstant.Flags : 0;
+					const bool dbl = (flags & (1u << 0)) != 0;
+					const bool msk = (flags & (1u << 1)) != 0;
+					const bool bld = (flags & (1u << 2)) != 0;
+
+					DX12PSO::MainPSO want =
+						bld ? (dbl ? DX12PSO::MainPSO::Blend_NoCull : DX12PSO::MainPSO::Blend_BackCull) :
+						msk ? (dbl ? DX12PSO::MainPSO::Mask_NoCull : DX12PSO::MainPSO::Mask_BackCull) :
+						(dbl ? DX12PSO::MainPSO::Opaque_NoCull : DX12PSO::MainPSO::Opaque_BackCull);
+
+					if (want != curr) { commandList->SetPipelineState(m_DX12Device.GetDX12PSO()->GetPipelineState(want)); curr = want; }
+				}
+
 				UINT matIndex = m_DX12Device.GetDX12RenderItem(renderItemIndex).GetMaterialIndex();
 				UINT texIndex = m_DX12Device.GetDX12RenderItem(renderItemIndex).GetTextureIndex();
 				UINT objIndex = m_DX12Device.GetDX12RenderItem(renderItemIndex).GetObjectConstantIndex();
@@ -287,11 +313,12 @@ void RenderDX12::RecordAndSubmit_Single()
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(3, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetShadowMap).gpuDescHandle);
 		UINT rtRootConstants[3] = { 0,0,0 };//dummy
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRoot32BitConstants(4, 3, rtRootConstants, 0);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(5, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayTLAS).gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(6, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayGeometry).gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(7, rayOutOffset.gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(8, rayAccumOffset.gpuDescHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(9, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayIndex).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(5, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetIrradiance).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(6, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayTLAS).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(7, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayGeometry).gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(8, rayOutOffset.gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(9, rayAccumOffset.gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetComputeRootDescriptorTable(10, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetRayIndex).gpuDescHandle);
 
 		D3D12_DISPATCH_RAYS_DESC desc{};
 		desc.RayGenerationShaderRecord.StartAddress = m_DX12Device.GetDX12RayTracingManager()->GetRayGenShaderTable()->GetGPUVirtualAddress();
@@ -318,6 +345,8 @@ void RenderDX12::RecordAndSubmit_Single()
 	// rasterize block
 	else
 	{
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetPipelineState(m_DX12Device.GetDX12PSO()->GetShadowPipelineState());
+
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootSignature(m_DX12Device.GetDX12RootSignature()->GetRasterizeRootSignature());
 		ID3D12DescriptorHeap* descriptorHeaps[] = { m_DX12Device.GetDX12SRVHeap()->GetDescHeap() };
 
@@ -342,11 +371,11 @@ void RenderDX12::RecordAndSubmit_Single()
 			m_DX12Device.GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV)));
 		m_DX12FrameBuffer.BeginShadowRender(m_DX12Device.GetDX12CommandList(), m_DX12Device.GetDX12ShadowManager(), shadowDSVOffsetHandle);
 		m_DX12FrameBuffer.SetShadowRenderViewPort(m_DX12Device.GetDX12CommandList(), m_DX12Device.GetDX12ShadowManager(), shadowDSVOffsetHandle);
-		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetPipelineState(m_DX12Device.GetDX12PSO()->GetPipelineState(1));
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootDescriptorTable(0, cbvSlice.gpuDescHandle);
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootDescriptorTable(1, texSlice.gpuDescHandle);
 		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootDescriptorTable(2, matSlice.gpuDescHandle);
+		m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRootDescriptorTable(5, m_DX12Device.GetDX12SRVHeap()->Offset(SRVOffset::SRVOffsetIrradiance).gpuDescHandle);
 
 		for (uint32_t i = 0; i < m_DX12Device.GetRenderItemSize(); ++i)
 		{
@@ -381,12 +410,28 @@ void RenderDX12::RecordAndSubmit_Single()
 		PIXEndEvent(m_DX12Device.GetDX12CommandList()->GetCommandList()); //pix frame start setting marking end
 		PIXBeginEvent(m_DX12Device.GetDX12CommandList()->GetCommandList(), PIX_COLOR(0, 128, 255), L"MainDraw (%d items)", m_DX12Device.GetRenderItemSize()); //pix marking ~ main draw
 #endif
+		DX12PSO::MainPSO curr = DX12PSO::MainPSO::Opaque_BackCull;
 		//main pass
 		for (int renderItemIndex = 0; renderItemIndex < m_DX12Device.GetRenderItemSize(); renderItemIndex++)
 		{
 			UINT matIndex = m_DX12Device.GetDX12RenderItem(renderItemIndex).GetMaterialIndex();
 			UINT texIndex = m_DX12Device.GetDX12RenderItem(renderItemIndex).GetTextureIndex();
 			UINT objIndex = m_DX12Device.GetDX12RenderItem(renderItemIndex).GetObjectConstantIndex();
+
+			// read flag from material
+			const Material* mtl = m_DX12Device.GetMaterialCPU(matIndex);
+			const uint32_t flags = mtl ? mtl->matConstant.Flags : 0;
+			const bool dbl = (flags & (1u << 0)) != 0;
+			const bool msk = (flags & (1u << 1)) != 0;
+			const bool bld = (flags & (1u << 2)) != 0;
+
+			DX12PSO::MainPSO want =
+				bld ? (dbl ? DX12PSO::MainPSO::Blend_NoCull : DX12PSO::MainPSO::Blend_BackCull) :
+				msk ? (dbl ? DX12PSO::MainPSO::Mask_NoCull : DX12PSO::MainPSO::Mask_BackCull) :
+				(dbl ? DX12PSO::MainPSO::Opaque_NoCull : DX12PSO::MainPSO::Opaque_BackCull);
+
+			if (want != curr) { m_DX12Device.GetDX12CommandList()->GetCommandList()->SetPipelineState(m_DX12Device.GetDX12PSO()->GetPipelineState(want)); curr = want; }
+
 			struct RootPush { UINT matIdx; UINT texIdx; UINT worldIdx; } push{ matIndex, texIndex, objIndex };
 			m_DX12Device.GetDX12CommandList()->GetCommandList()->SetGraphicsRoot32BitConstants(4, 3, &push, 0);
 
@@ -519,6 +564,7 @@ void RenderDX12::RecordAndSubmit_Multi()
 	HeapSlice cbvSlice = cbvSrvHeap->Offset(cbvSliceIndex);
 	HeapSlice texSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetTextureSRGB);
 	HeapSlice matSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetMaterial);
+	HeapSlice iblSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetIrradiance);
 	HeapSlice shadowMapSlice = cbvSrvHeap->Offset(SRVOffset::SRVOffsetShadowMap);
 
 	if (numWorkers > 0)
@@ -537,6 +583,7 @@ void RenderDX12::RecordAndSubmit_Multi()
 				job.cbvSlice = cbvSlice;
 				job.texSlice = texSlice;
 				job.matSlice = matSlice;
+				job.iblSlice = iblSlice;
 				job.shadowDSVHandle = shadowDSVOffsetHandle;
 				job.passType = WorkerJobDrawing::PassType::Shadow;
 				job.ready = true;
@@ -583,6 +630,7 @@ void RenderDX12::RecordAndSubmit_Multi()
 				job.cbvSlice = cbvSlice;
 				job.texSlice = texSlice;
 				job.matSlice = matSlice;
+				job.iblSlice = iblSlice;
 				job.shadowSlice = shadowMapSlice;
 				job.passType = WorkerJobDrawing::PassType::Main;
 				job.ready = true;

@@ -23,13 +23,14 @@ struct Material
     float  Shininess;
 };
 
+//////////////////////////////////////////////////////////bling phong shading
+
 // Schlick approximation of fresnel
-float3 SchlickFresnel(float3 R0, float3 normal, float3 Light)
+float3 SchlickFresnel(float cosTheta, float3 F0)
 {
-    float c = saturate(dot(normal, Light));
-    float f0 = 1.0 - c;
-    return R0 + (1.0 - R0) * (f0 * f0 * f0 * f0 * f0);
+    return F0 + (1.0f - F0) * pow(1.0f - cosTheta, 5.0f);
 }
+
 
 // return diffuse + specular
 float3 BlinnPhong(float3 LIntensity, float3 Ldir, float3 normal, float3 eyeVector, Material mat)
@@ -37,13 +38,15 @@ float3 BlinnPhong(float3 LIntensity, float3 Ldir, float3 normal, float3 eyeVecto
     const float m = mat.Shininess * 256.0f;
     float3 Halfway = normalize(eyeVector + Ldir);
     float  roughFactor = (m + 8.0f) * pow(max(dot(Halfway, normal), 0.0f), m) / 8.0f; //surface roughness
-    float3 Fresnel = SchlickFresnel(mat.FresnelR0, Halfway, Ldir); //fresnel effect
+
+    float VDotH = saturate(dot(Halfway, Ldir));
+    float3 Fresnel = SchlickFresnel(VDotH, mat.FresnelR0); //fresnel effect
     float3 spec = Fresnel * roughFactor;
     //spec = spec / (spec + 1.0f); // LDR adjustment
     return (mat.DiffuseAlbedo.rgb + spec) * LIntensity;
 }
 
-// smooth attenuation of light intensity
+// smooth attenuation of light intensity for phong
 float DistanceAttenuation(float d, float range)
 {
     float invSq = 1.0f / max(d * d, 1e-4f);
@@ -53,14 +56,13 @@ float DistanceAttenuation(float d, float range)
     return invSq * smooth * smooth;
 }
 
-// angle attenuation of light intensity
+// angle attenuation of light intensity for phong
 float SpotAttenuation(float cosTheta, float innerCos, float outerCos)
 {
     float t = saturate((cosTheta - outerCos) / max(1e-4f, (innerCos - outerCos)));
     return t * t;
 }
 
-// ------------------------------------------------------------
 // Directional: E[lux] ≈ Intensity * N·L
 float3 ComputeDirectionalLight(Light L, Material mat, float3 normal, float3 eyeVector)
 {
@@ -103,8 +105,13 @@ float3 ComputeSpotLight(Light L, Material mat, float3 objectPosition, float3 nor
 }
 
 // ------------------------------------------------------------
-float4 ComputeLighting(Light gLights[NUM_LIGHTS], Material mat,
-    float3 objectPosition, float3 normal, float3 toEye, float3 shadowFactor)
+float4 ComputeLighting(
+    Light gLights[NUM_LIGHTS],
+    Material mat,
+    float3 objectPosition,
+    float3 normal,
+    float3 toEye,
+    float3 shadowFactor)
 {
     float3 sumL = 0.0f;
     int i = 0;
@@ -128,4 +135,86 @@ float4 ComputeLighting(Light gLights[NUM_LIGHTS], Material mat,
 #endif
 
     return float4(sumL, 0.0f);
+}
+
+
+//////////////////////////////////////////////////////////GGX
+static const float PI = 3.14159265f;
+
+float NDF_GGX(float NdotH, float a)
+{
+    float a2 = a * a;
+    float d = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
+    //return a2 / (PI * d * d);
+    return a2 / (4.0f * d * d);
+}
+
+float F_Schlick(float NdotX, float k)
+{
+    return NdotX / (NdotX * (1.0f - k) + k);
+}
+
+float G_SmithGGX(float NdotV, float NdotL, float k)
+{
+    return F_Schlick(NdotV, k) * F_Schlick(NdotL, k);
+}
+
+//Cook–Torrance GGX
+float3 BRDF_GGX(
+    Light light,
+    float3 P,
+    float3 N,
+    float3 V,
+    float3 baseColor,
+    float metal,
+    float roughness)
+{
+    float3 L;
+    float3 radiance;
+
+    if (light.Type == 0)
+    {// directional
+        L = normalize(-light.Direction);
+        radiance = light.Color * light.Intensity;
+    }
+    else
+    {// point/spot
+        float3 toL = light.Position - P;
+        float dist2 = dot(toL, toL);
+        float dist = sqrt(dist2);
+        L = toL / max(dist, 1e-4);
+        float atten = (light.Range > 0.0f) ? saturate(1.0f - dist / light.Range) : 1.0f;
+        radiance = light.Color * atten * atten * light.Intensity;
+
+        if (light.Type == 2) 
+        {// spot
+            float cosTheta = dot(-L, normalize(light.Direction));
+            float spot = smoothstep(light.OuterCos, light.InnerCos, cosTheta);
+            radiance *= spot;
+        }
+    }
+
+    float NdotL = saturate(dot(N, L));
+    if (NdotL <= 0.0f) return 0;
+
+    float3 H = normalize(V + L);
+    float NdotV = saturate(dot(N, V));
+    float NdotH = saturate(dot(N, H));
+    float VdotH = saturate(dot(V, H));
+
+    float3 F0 = lerp(float3(0.04, 0.04, 0.04), baseColor, metal);
+    float a = max(roughness, 0.04f);
+    float a2 = a * a;
+
+    float  D = NDF_GGX(NdotH, a);
+    float  k = (a + 1.0f); // Schlick–GGX remap
+    k = (k * k) * 0.125f; // = (a^2)/2 approxim.
+    float  G = G_SmithGGX(NdotV, NdotL, k);
+    float3 F = SchlickFresnel(VdotH, F0);
+
+    float3 spec = (D * G * F) / max(4.0f * NdotV * NdotL, 1e-4f);
+    float3 kD = (1.0f - F) * (1.0f - metal);
+    float3 diff = kD * baseColor / PI;
+
+    return (diff + spec) * radiance * NdotL;
 }

@@ -99,10 +99,22 @@ void DX12MaterialConstantManager::PushMaterial(std::unique_ptr<Material>&& mater
     tmpMaterialConst.ORMIndex = material->matConstant.ORMIndex;
     tmpMaterialConst.OcclusionIndex = material->matConstant.OcclusionIndex;
     tmpMaterialConst.EmissiveIndex = material->matConstant.EmissiveIndex;
+    tmpMaterialConst.BaseColorUV = material->matConstant.BaseColorUV;
+    tmpMaterialConst.NormalUV = material->matConstant.NormalUV;
+    tmpMaterialConst.ORMUV = material->matConstant.ORMUV;
+    tmpMaterialConst.OcclusionUV = material->matConstant.OcclusionUV;
+    tmpMaterialConst.EmissiveUV = material->matConstant.EmissiveUV;
 
+    tmpMaterialConst.Flags = material->matConstant.Flags;
+    tmpMaterialConst.AlphaCutoff = material->matConstant.AlphaCutoff;
+
+    MaterialMetaData tmpMeta; //save for choosing PSO during drawing
+    tmpMeta.Flags = material->matConstant.Flags;
+    tmpMeta.AlphaCutoff = material->matConstant.AlphaCutoff;
 
     m_materialConstant.emplace_back(tmpMaterialConst);
     m_materials.emplace_back(std::move(material));
+    m_matMeta.emplace_back(tmpMeta);
 }
 
 DX12ObjectConstantManager::DX12ObjectConstantManager()

@@ -16,6 +16,7 @@ struct Vertex
     XMFLOAT3 position;
     XMFLOAT3 normal;
     XMFLOAT2 texC;
+    XMFLOAT2 texC1;
     XMFLOAT4 tangent;
 };
 

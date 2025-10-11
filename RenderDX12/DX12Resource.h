@@ -31,6 +31,7 @@ public:
 	D3D12_RESOURCE_STATES GetCurrentState() const noexcept { return m_currentState; }
 
 	void TransitionState(DX12CommandList* dx12CommandList, D3D12_RESOURCE_STATES newState);
+	void TransitionState(DX12CommandList* dx12CommandList, D3D12_RESOURCE_STATES newState, UINT subResources);
 
 	void Reset() noexcept { m_resource.Reset(); m_currentState = D3D12_RESOURCE_STATE_COMMON; }
 	ID3D12Resource** GetAddressOf() noexcept { return m_resource.GetAddressOf(); }

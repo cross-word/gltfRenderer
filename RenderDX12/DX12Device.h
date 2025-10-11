@@ -78,6 +78,8 @@ public:
 	bool IsDXRAvailable() const noexcept { return m_rtxSupported; }
 	inline DX12RayTracingManager* GetDX12RayTracingManager() const { return m_DX12RayTracingManager.get(); }
 	void ResizeRTOut();
+
+	const Material* GetMaterialCPU(UINT idx) const noexcept { return m_DX12MaterialConstantManager->GetMaterial(idx); }
 private:
 	void InitDX12CommandList(ID3D12CommandAllocator* commandAllocator);
 	void InitDX12SwapChain(HWND hWnd);
@@ -119,6 +121,7 @@ private:
 
 	ComPtr<ID3DBlob> m_vertexShader = nullptr;
 	ComPtr<ID3DBlob> m_pixelShader = nullptr;
+	ComPtr<ID3DBlob> m_pixelShaderMask = nullptr;
 	ComPtr<ID3DBlob> m_shadowVertexShader = nullptr;
 	ComPtr<ID3DBlob> m_shadowPixelShader = nullptr;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> m_inputLayout;
@@ -145,4 +148,10 @@ private:
 	std::vector<DirectX::XMFLOAT2> m_texcoords;
 	std::vector<DirectX::XMFLOAT4> m_tangents;
 	std::vector<GeometryMetadataCPU> m_geoTable;
+
+	//tmp
+	std::unique_ptr<DX12DDSManager> m_iblIrr;
+	std::unique_ptr<DX12DDSManager> m_iblSpec;
+	std::unique_ptr<DX12DDSManager> m_brdf;
+	float m_specMipMapCount = 0.0f;
 };

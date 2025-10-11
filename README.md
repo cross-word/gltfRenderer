@@ -37,6 +37,7 @@ gltf file Renderer through DX12 API
 > 3. command
 >   > press "Tab" toggle multi-thread & single-thread in rasterize rendering   
 >   > press "Space" toggel ray-tracing & rasterize in single-thread rendering   
+>   > key WASD move the camera.   
 
 # Other Scene Load
 > If you want to load other scene, parse your path useing --scene_path="your_scene_path" in cmd.     
@@ -47,6 +48,8 @@ gltf file Renderer through DX12 API
 
 ![](example/ex1.gif)
 ![](example/ex2.gif)
+![](example/ex3.gif)
+![](example/ex4.gif)
 
 ## Third Party Licenses
 - Dear ImGui : Copyright (c) 2014-2025 Omar Cornut — MIT

@@ -36,7 +36,7 @@ public:
 		const std::vector<std::unique_ptr<DX12RenderGeometry>>& dx12RenderGeometry);
 	void InitTLAS(
 		ID3D12Device5* device,
-		ID3D12GraphicsCommandList4* commandList,
+		DX12CommandList* dx12CommandList,
 		const std::vector<std::unique_ptr<DX12RenderGeometry>>& dx12RenderGeometry,
 		std::vector<Render::RenderItem>& renderItem);
 	void InitRayTracingPipeline(ID3D12Device5* device, ID3D12RootSignature* globalRootSignature, std::vector<std::string>& shaderMacros);

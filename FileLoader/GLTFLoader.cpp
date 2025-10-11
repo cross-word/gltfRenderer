@@ -95,6 +95,7 @@ MeshData BuildMeshFromPrimitive(const tinygltf::Model& model, const tinygltf::Pr
     const tinygltf::Accessor* posAcc = findAttr("POSITION");
     const tinygltf::Accessor* nrmAcc = findAttr("NORMAL");
     const tinygltf::Accessor* texAcc = findAttr("TEXCOORD_0");
+    const tinygltf::Accessor* texAcc1 = findAttr("TEXCOORD_1");
     const tinygltf::Accessor* tanAcc = findAttr("TANGENT");
 
     const size_t vcount = posAcc ? posAcc->count : 0;
@@ -142,6 +143,7 @@ MeshData BuildMeshFromPrimitive(const tinygltf::Model& model, const tinygltf::Pr
         if (posAcc) { readVec(posAcc, i, tmp, 3); v.position = { tmp[0], tmp[1], -tmp[2] }; }
         if (nrmAcc) { readVec(nrmAcc, i, tmp, 3); v.normal = { tmp[0], tmp[1], -tmp[2] }; }
         if (texAcc) { readVec(texAcc, i, tmp, 2); v.texC = { tmp[0], tmp[1] }; } // ÇÊ¿ä ½Ã v = 1 - v[1]
+        if (texAcc1) { readVec(texAcc1, i, tmp, 2); v.texC1 = { tmp[0], tmp[1] }; }
         if (tanAcc) { float t[4] = { 0,0,0,1 }; readVec(tanAcc, i, t, 4); v.tangent = { t[0], t[1], -t[2], -t[3] }; }
 
         md.vertices.push_back(v);
@@ -187,10 +189,12 @@ void BuildNodeWorlds(const tinygltf::Model& model,
         };
 
     XMMATRIX I = XMMatrixIdentity();
-    if (model.scenes.empty()) {
+    if (model.scenes.empty())
+    {
         for (size_t i = 0; i < model.nodes.size(); ++i) dfs((int)i, I);
     }
-    else {
+    else 
+    {
         int s = model.defaultScene >= 0 ? model.defaultScene : 0;
         for (int root : model.scenes[s].nodes) dfs(root, I);
     }
@@ -303,12 +307,32 @@ SceneData LoadGLTFScene(const std::wstring& filename)
 
     ///////////texture path
     auto base = std::filesystem::weakly_canonical(std::filesystem::absolute(path.parent_path()));
-    scene.textures.reserve(model.images.size());
-    for (const auto& img : model.images)
+    scene.textures.reserve(model.textures.size());
+    for (const auto& tex : model.textures)
     {
-        std::filesystem::path p = img.uri;
-        auto abs = std::filesystem::weakly_canonical(base / p);
-        scene.textures.push_back(abs.wstring());
+        int imgIdx = tex.source;
+        std::wstring absW;
+
+        if (imgIdx >= 0 && imgIdx < (int)model.images.size())
+        {
+            const auto& img = model.images[imgIdx];
+            if (!img.uri.empty())
+            {
+                std::filesystem::path p = img.uri;
+                auto abs = std::filesystem::weakly_canonical(base / p);
+                absW = abs.wstring();
+            }
+            else
+            {
+                absW = L"";
+            }
+        }
+        else
+        {
+            absW = L"";
+        }
+
+        scene.textures.push_back(absW);
     }
 
     ///////////material info
@@ -324,10 +348,11 @@ SceneData LoadGLTFScene(const std::wstring& filename)
                 (float)m.pbrMetallicRoughness.baseColorFactor[2],
                 (float)m.pbrMetallicRoughness.baseColorFactor[3]);
         }
-        if (m.pbrMetallicRoughness.roughnessFactor > 0) mt.Roughness = (float)m.pbrMetallicRoughness.roughnessFactor;
-        if (m.pbrMetallicRoughness.metallicFactor > 0)  mt.Metallic = (float)m.pbrMetallicRoughness.metallicFactor;
-        if (m.normalTexture.scale > 0) mt.NormalScale = (float)m.normalTexture.scale;
-        if (m.occlusionTexture.strength > 0) mt.OcclusionStrength = (float)m.occlusionTexture.strength;
+        mt.Roughness = (float)(m.pbrMetallicRoughness.roughnessFactor);
+        mt.Metallic = (float)(m.pbrMetallicRoughness.metallicFactor);
+        mt.NormalScale = (m.normalTexture.scale == 0.0) ? 1.0f : (float)m.normalTexture.scale;
+        mt.OcclusionStrength = (m.occlusionTexture.strength == 0.0) ? 1.0f : (float)m.occlusionTexture.strength;
+
         //if (m.extensions["KHR_materials_emissive_strength"])
         if (m.emissiveFactor.size() == 3)
         {
@@ -337,11 +362,46 @@ SceneData LoadGLTFScene(const std::wstring& filename)
                 (float)m.emissiveFactor[2]);
         };
 
-        if (m.pbrMetallicRoughness.baseColorTexture.index >= 0) mt.BaseColorIndex = m.pbrMetallicRoughness.baseColorTexture.index;
-        if (m.normalTexture.index >= 0)                         mt.NormalIndex = m.normalTexture.index;
-        if (m.occlusionTexture.index >= 0)                      mt.OcclusionIndex = m.occlusionTexture.index;
-        if (m.emissiveTexture.index >= 0)                       mt.EmissiveIndex = m.emissiveTexture.index;
-        if (m.pbrMetallicRoughness.metallicRoughnessTexture.index >= 0) mt.ORMIndex = m.pbrMetallicRoughness.metallicRoughnessTexture.index;
+        if (m.pbrMetallicRoughness.baseColorTexture.index >= 0)
+        {
+            mt.BaseColorIndex = m.pbrMetallicRoughness.baseColorTexture.index;
+            mt.BaseColorUV = (uint32_t)m.pbrMetallicRoughness.baseColorTexture.texCoord;
+        }
+        if (m.normalTexture.index >= 0)                         
+        {
+            mt.NormalIndex = m.normalTexture.index;
+            mt.NormalUV = (uint32_t)m.normalTexture.texCoord;
+        }
+        if (m.occlusionTexture.index >= 0)                      
+        {
+            mt.OcclusionIndex = m.occlusionTexture.index;
+            mt.OcclusionStrength = (float)m.occlusionTexture.strength;
+            mt.OcclusionUV = (uint32_t)m.occlusionTexture.texCoord;
+        }
+        if (m.emissiveTexture.index >= 0)                       
+        {
+            mt.EmissiveIndex = m.emissiveTexture.index;
+            mt.EmissiveUV = (uint32_t)m.emissiveTexture.texCoord;
+        }
+        if (m.pbrMetallicRoughness.metallicRoughnessTexture.index >= 0)
+        {
+            mt.ORMIndex = (uint32_t)m.pbrMetallicRoughness.metallicRoughnessTexture.index;
+            mt.ORMUV = (uint32_t)m.pbrMetallicRoughness.metallicRoughnessTexture.texCoord;
+        }
+
+        // KHR_materials_emissive_strength
+        auto eit = m.extensions.find("KHR_materials_emissive_strength");
+        if (eit != m.extensions.end() && eit->second.IsObject())
+        {
+            const auto& obj = eit->second.Get<tinygltf::Value::Object>();
+            auto st = obj.find("emissiveStrength");
+            if (st != obj.end() && (st->second.IsNumber() || st->second.IsInt())) mt.EmissiveStrength = (float)st->second.GetNumberAsDouble();
+        }
+
+        auto mode = m.alphaMode; // "OPAQUE","MASK","BLEND"
+        mt.Flags |= m.doubleSided ? 1u << 0 : 0;
+        if (mode == "MASK") { mt.Flags |= 1u << 1; mt.AlphaCutoff = m.alphaCutoff; }
+        if (mode == "BLEND") { mt.Flags |= 1u << 2; }
 
         scene.materials.push_back(mt);
     }

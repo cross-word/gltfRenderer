@@ -32,11 +32,20 @@ struct MaterialTex
 
     XMFLOAT3 EmissiveFactor = { 0,0,0 }; // emissiveFactor(vec3)
 
-    uint32_t BaseColorIndex = UINT32_MAX; // pbrMetallicRoughness.baseColorTexture.index + .texCoord
-    uint32_t NormalIndex = UINT32_MAX; // normalTexture.index + .texCoord
-    uint32_t ORMIndex = UINT32_MAX; // pbrMetallicRoughness.metallicRoughnessTexture.index + .texCoord
+    uint32_t BaseColorIndex = UINT32_MAX; // pbrMetallicRoughness.baseColorTexture.index
+    uint32_t NormalIndex = UINT32_MAX; // normalTexture.index
+    uint32_t ORMIndex = UINT32_MAX; // pbrMetallicRoughness.metallicRoughnessTexture.index
     uint32_t OcclusionIndex = UINT32_MAX;
     uint32_t EmissiveIndex = UINT32_MAX; // emissiveTexture.index
+
+    uint32_t BaseColorUV = 0; //all default TEXCOORD0
+    uint32_t NormalUV = 0;
+    uint32_t ORMUV = 0;
+    uint32_t OcclusionUV = 0;
+    uint32_t EmissiveUV = 0;
+
+    float AlphaCutoff = 0.5f; //gltf default
+    uint32_t Flags = 0;
 };
 
 struct PrimitiveMeshEx

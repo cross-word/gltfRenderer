@@ -13,7 +13,10 @@ DX12RayTracingManager::~DX12RayTracingManager()
 
 }
 
-void DX12RayTracingManager::InitBLAS(ID3D12Device5* device, DX12CommandList* dx12CommandList, const std::vector<std::unique_ptr<DX12RenderGeometry>>& dx12RenderGeometry)
+void DX12RayTracingManager::InitBLAS(
+	ID3D12Device5* device,
+	DX12CommandList* dx12CommandList,
+	const std::vector<std::unique_ptr<DX12RenderGeometry>>& dx12RenderGeometry)
 {
 	m_BLAS.clear();
 	m_BLASScratch.clear();
@@ -78,12 +81,14 @@ void DX12RayTracingManager::InitBLAS(ID3D12Device5* device, DX12CommandList* dx1
 		desc.DestAccelerationStructureData = m_BLAS[i]->GetResource()->GetGPUVirtualAddress();
 
 		dx12CommandList->GetCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
+		auto uav = CD3DX12_RESOURCE_BARRIER::UAV(m_BLAS[i]->GetResource());
+		dx12CommandList->GetCommandList()->ResourceBarrier(1, &uav);
 	}
 }
 
 void DX12RayTracingManager::InitTLAS(
 	ID3D12Device5* device,
-	ID3D12GraphicsCommandList4* commandList,
+	DX12CommandList* dx12CommandList,
 	const std::vector<std::unique_ptr<DX12RenderGeometry>>& dx12RenderGeometry,
 	std::vector<Render::RenderItem>& renderItem)
 {
@@ -150,7 +155,9 @@ void DX12RayTracingManager::InitTLAS(
 	desc.ScratchAccelerationStructureData = m_TLASScratch->GetResource()->GetGPUVirtualAddress();
 	desc.DestAccelerationStructureData = m_TLAS->GetResource()->GetGPUVirtualAddress();
 
-	commandList->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
+	dx12CommandList->GetCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
+	auto uav = CD3DX12_RESOURCE_BARRIER::UAV(m_TLAS->GetResource());
+	dx12CommandList->GetCommandList()->ResourceBarrier(1, &uav);
 }
 
 void DX12RayTracingManager::InitRayTracingPipeline(ID3D12Device5* device, ID3D12RootSignature* globalRootSignature, std::vector<std::string>& shaderMacros)

@@ -17,6 +17,17 @@ class DX12PSO
 public:
 	DX12PSO();
 	~DX12PSO();
+	enum class MainPSO : uint32_t
+	{
+		Opaque_BackCull = 0,
+		Opaque_NoCull = 1,
+		Mask_BackCull = 2,
+		Mask_NoCull = 3,
+		Blend_BackCull = 4,
+		Blend_NoCull = 5,
+		_Count
+	};
+
 	void CreateMainPassPSO(
 		ID3D12Device* device,
 		const std::vector<D3D12_INPUT_ELEMENT_DESC>& inputLayout,
@@ -25,6 +36,17 @@ public:
 		DXGI_FORMAT renderTargetFormat,
 		ID3DBlob* vertexShader,
 		ID3DBlob* pixelShader,
+		UINT numRenderTarget,
+		UINT sampleCount);
+	void CreateMainPassPSOs(
+		ID3D12Device* device,
+		const std::vector<D3D12_INPUT_ELEMENT_DESC>& inputLayout,
+		ID3D12RootSignature* rootSignature,
+		DXGI_FORMAT depthStencilFormat,
+		DXGI_FORMAT renderTargetFormat,
+		ID3DBlob* vertexShader,
+		ID3DBlob* pixelShader,
+		ID3DBlob* pixelShaderMask,
 		UINT numRenderTarget,
 		UINT sampleCount);
 	void CreateShadowPassPSO(
@@ -39,6 +61,9 @@ public:
 		UINT sampleCount);
 	ID3D12PipelineState* GetPipelineState();
 	ID3D12PipelineState* GetPipelineState(int index);
+	ID3D12PipelineState* GetPipelineState(MainPSO k);
+	ID3D12PipelineState* GetShadowPipelineState() { return m_shadowPipelineStates.Get(); }
 private:
 	std::vector<ComPtr<ID3D12PipelineState>> m_pipelineStates;
+	ComPtr<ID3D12PipelineState> m_shadowPipelineStates;
 };
