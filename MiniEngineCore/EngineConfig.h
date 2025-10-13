@@ -39,9 +39,9 @@ struct EngineConfig
     static inline const std::wstring kScenePathS = MakePath(LR"(..\..\..\..\main_sponza\NewSponza_Main_glTF_003.gltf)");
     static inline const std::wstring kShaderRayTracingPathS = MakePath(LR"(..\..\..\Shaders\RayTracing.hlsl)");
     static inline const std::wstring kShaderDirectoryPathS = MakePath(LR"(..\..\..\Shaders)");
-    static inline const std::wstring kIrradiancePathS = MakePath(LR"(D:\MiniEngine\CLI\irradiance.dds)");
-    static inline const std::wstring kSpecularPathS = MakePath(LR"(D:\MiniEngine\CLI\specular.dds)");
-    static inline const std::wstring kBRDFPathS = MakePath(LR"(D:\MiniEngine\CLI\brdf.dds)");
+    static inline const std::wstring kIrradiancePathS = MakePath(LR"(..\..\..\..\CLI\irradiance.dds)");
+    static inline const std::wstring kSpecularPathS = MakePath(LR"(..\..\..\..\CLI\specular.dds)");
+    static inline const std::wstring kBRDFPathS = MakePath(LR"(..\..\..\..\CLI\brdf.dds)");
 
     static inline const wchar_t* ShaderFilePath = kShaderPathS.c_str();
     static inline const wchar_t* ShadowShaderFilePath = kShadowShaderPathS.c_str();
